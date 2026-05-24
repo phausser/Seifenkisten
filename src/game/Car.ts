@@ -16,66 +16,206 @@ const FRONT_Y = -BODY_H / 2 + 14;
 /** Bounding circle radius used for collision detection. */
 export const CAR_RADIUS = 18;
 
+// ─── Physics tuning ───────────────────────────────────────────────────────────
+
+/** Downhill acceleration – applied along the track tangent direction (u/s²). */
+const GRAVITY             = 240;
+
+/** Linear drag on the road surface.  Terminal velocity ≈ GRAVITY / ROAD_DRAG. */
+const ROAD_DRAG           = 0.72;   // terminal ≈ 333 u/s
+
+/** Much higher drag off-road so the car slows noticeably on grass. */
+const GRASS_DRAG          = 3.2;    // terminal ≈  75 u/s
+
+/** Lateral velocity is killed this fraction per second on road (high = grippy). */
+const LATERAL_GRIP        = 9.0;
+
+/** Reduced grip on grass – the car slides more. */
+const GRASS_LATERAL_GRIP  = 1.8;
+
+/** Angular acceleration from a full steer input at zero speed (rad/s²). */
+const STEER_ACCEL         = 5.5;
+
+/** Speed-dependent steer reduction:  effective = STEER_ACCEL / (1 + v * k). */
+const STEER_SPEED_FACTOR  = 0.0028;
+
+/** Angular velocity exponential decay rate (1/s). */
+const ANG_DAMP            = 7.0;
+
+/** Hard velocity cap (u/s). */
+const MAX_SPEED           = 500;
+
+/** Starting speed along track so the car rolls immediately (u/s). */
+const INIT_SPEED          = 90;
+
 /**
- * The player's soapbox car.
+ * The player's soapbox car – Phase 2 full physics.
  *
- * Phase 3 placeholder: follows track centerline at constant speed.
- * Phase 2 will replace `update()` with real physics (gravity, steering, friction).
+ * Primary state
+ *   worldX / worldY  – world position
+ *   vx / vy          – velocity vector (world units / s)
+ *   angle            – heading; canvas rotation angle (0 = facing screen-up)
+ *   angularVel       – turning rate (rad / s)
  *
- * `lateralOffset` — deviation from centerline in world units along the track normal.
- * Set by collision response; Phase 2 will drive it via steering input.
+ * Track-relative state (derived each frame from world position)
+ *   dist             – arc-length progress along track
+ *   lateralOffset    – signed distance from centreline (+ = left of travel)
+ *
+ * Forward direction: (sin(angle), −cos(angle))
+ * Perpendicular axis: (cos(angle), sin(angle))   – used for grip calculation
+ *
+ * Angle convention: pressing RIGHT decreases angle (car rotates CW on screen,
+ * turning toward screen-right when going screen-down).
  */
 export class Car {
-  worldX = 0;
-  worldY = 0;
-  angle  = 0;   // canvas rotation (0 = front pointing toward screen-top)
-  dist   = 0;   // arc-length traveled along track
+  // World state
+  worldX     = 0;
+  worldY     = 0;
+  vx         = 0;
+  vy         = 0;
+  angle      = 0;
+  angularVel = 0;
 
-  lateralOffset = 0;  // world units from centerline; + = left, − = right
-  frozen        = 0;  // seconds remaining in post-crash freeze
+  // Track-relative (derived each tick)
+  dist          = 0;
+  lateralOffset = 0;
 
-  readonly speed = 280; // placeholder — Phase 2 replaces with dynamic velocity
+  /** Seconds remaining in post-crash freeze. */
+  frozen = 0;
 
   constructor(track: Track) {
     const s = track.getSampleAtDist(0);
     this.worldX = s.x;
     this.worldY = s.y;
+    // Heading aligned with track tangent (original convention: atan2(ty,tx)+π/2)
+    this.angle = Math.atan2(s.ty, s.tx) + Math.PI * 0.5;
+    // Rolling start: initial velocity along track tangent
+    this.vx = s.tx * INIT_SPEED;
+    this.vy = s.ty * INIT_SPEED;
   }
 
+  // ─── Update ────────────────────────────────────────────────────────────────
+
   /**
-   * Advance car along the track.
-   * Phase 2: replace body with full physics; keep lateralOffset + frozen logic.
+   * Physics tick.
+   * @param dt    fixed timestep (seconds)
+   * @param steer steer axis: −1 = left, 0 = none, +1 = right
+   * @param track current track
    */
-  update(dt: number, track: Track): void {
+  update(dt: number, steer: number, track: Track): void {
     if (this.frozen > 0) {
       this.frozen -= dt;
       return;
     }
 
-    this.dist += this.speed * dt;
-    const s = track.getSampleAtDist(this.dist);
+    // ── Sample track at current progress ──────────────────────────────────────
+    const s      = track.getSampleAtDist(this.dist);
+    const onRoad = Math.abs(this.lateralOffset) < s.halfWidth - CAR_RADIUS * 0.5;
+    const drag   = onRoad ? ROAD_DRAG  : GRASS_DRAG;
+    const grip   = onRoad ? LATERAL_GRIP : GRASS_LATERAL_GRIP;
 
-    // Decay lateral offset toward center (placeholder spring — Phase 2 replaces)
-    this.lateralOffset *= Math.pow(0.80, dt * 60);
+    // ── Car heading directions ─────────────────────────────────────────────────
+    const fwdX  =  Math.sin(this.angle);   // forward X
+    const fwdY  = -Math.cos(this.angle);   // forward Y
+    const perpX =  Math.cos(this.angle);   // perpendicular axis X
+    const perpY =  Math.sin(this.angle);   // perpendicular axis Y
 
-    this.worldX = s.x + s.nx * this.lateralOffset;
-    this.worldY = s.y + s.ny * this.lateralOffset;
-    this.angle  = Math.atan2(s.ty, s.tx) + Math.PI * 0.5;
+    // ── Gravity – downhill force along track tangent ───────────────────────────
+    this.vx += s.tx * GRAVITY * dt;
+    this.vy += s.ty * GRAVITY * dt;
+
+    // ── Forward drag ──────────────────────────────────────────────────────────
+    const fwdSpeed = this.vx * fwdX + this.vy * fwdY;
+    if (fwdSpeed > 0) {
+      this.vx -= fwdX * drag * fwdSpeed * dt;
+      this.vy -= fwdY * drag * fwdSpeed * dt;
+    }
+
+    // ── Lateral grip – kill perpendicular velocity ─────────────────────────────
+    const perpSpeed = this.vx * perpX + this.vy * perpY;
+    const killFrac  = Math.min(1, grip * dt);
+    this.vx -= perpX * perpSpeed * killFrac;
+    this.vy -= perpY * perpSpeed * killFrac;
+
+    // ── Speed cap ──────────────────────────────────────────────────────────────
+    const speed = Math.hypot(this.vx, this.vy);
+    if (speed > MAX_SPEED) {
+      this.vx *= MAX_SPEED / speed;
+      this.vy *= MAX_SPEED / speed;
+    }
+
+    // ── Steering ──────────────────────────────────────────────────────────────
+    // Right (steer > 0) → angle decreases → minus sign
+    const steerRate = STEER_ACCEL / (1 + speed * STEER_SPEED_FACTOR);
+    this.angularVel -= steer * steerRate * dt;
+    this.angularVel *= Math.exp(-ANG_DAMP * dt);
+    this.angle      += this.angularVel * dt;
+
+    // ── Integrate position ────────────────────────────────────────────────────
+    this.worldX += this.vx * dt;
+    this.worldY += this.vy * dt;
+
+    // ── Update track-relative state ────────────────────────────────────────────
+    // Advance dist by the component of velocity along the track tangent
+    this.dist += (this.vx * s.tx + this.vy * s.ty) * dt;
+    this.dist  = Math.max(0, Math.min(track.totalLength, this.dist));
+
+    // Lateral offset = projection of (worldPos − trackCenter) onto left-normal
+    const sNew = track.getSampleAtDist(this.dist);
+    const dx   = this.worldX - sNew.x;
+    const dy   = this.worldY - sNew.y;
+    this.lateralOffset = dx * sNew.nx + dy * sNew.ny;
   }
 
+  // ─── Collision response ────────────────────────────────────────────────────
+
   /**
-   * Called by Game on collision (obstacle or border).
-   * Bounces car back toward centerline; Game applies the time penalty.
+   * Called by Game on obstacle or border collision.
+   * Bounces lateral velocity, reduces forward speed, pushes car back inside road.
    */
   onCollision(track: Track): void {
     const s = track.getSampleAtDist(this.dist);
-    // Reflect lateral offset back toward center with damping
-    this.lateralOffset = -this.lateralOffset * 0.4;
-    // Clamp inside road so car stays visible
-    const maxLateral = s.halfWidth - CAR_RADIUS - 4;
-    this.lateralOffset = Math.max(-maxLateral, Math.min(maxLateral, this.lateralOffset));
+
+    // Perpendicular / forward directions
+    const perpX =  Math.cos(this.angle);
+    const perpY =  Math.sin(this.angle);
+    const fwdX  =  Math.sin(this.angle);
+    const fwdY  = -Math.cos(this.angle);
+
+    // Bounce lateral velocity (reflect + damp)
+    const perpSpeed = this.vx * perpX + this.vy * perpY;
+    this.vx -= perpX * perpSpeed * 1.8;   // kill lateral + 0.8× bounce
+    this.vy -= perpY * perpSpeed * 1.8;
+
+    // Reduce forward speed by ~50 %
+    const fwdVel = this.vx * fwdX + this.vy * fwdY;
+    this.vx -= fwdX * fwdVel * 0.50;
+    this.vy -= fwdY * fwdVel * 0.50;
+
+    // Kill angular velocity (avoid spinning into the wall again)
+    this.angularVel = 0;
+
+    // Clamp world position back inside road
+    const maxLat = s.halfWidth - CAR_RADIUS - 4;
+    if (Math.abs(this.lateralOffset) > maxLat) {
+      const clamped = Math.sign(this.lateralOffset) * maxLat;
+      const delta   = clamped - this.lateralOffset;
+      this.worldX        += s.nx * delta;
+      this.worldY        += s.ny * delta;
+      this.lateralOffset  = clamped;
+    }
+
     this.frozen = 0.45;
   }
+
+  // ─── Accessors ─────────────────────────────────────────────────────────────
+
+  /** Current scalar speed (u/s) – used by the HUD. */
+  get speed(): number {
+    return Math.hypot(this.vx, this.vy);
+  }
+
+  // ─── Rendering ─────────────────────────────────────────────────────────────
 
   render(
     ctx: CanvasRenderingContext2D,
@@ -103,7 +243,7 @@ export class Car {
     ctx.fillStyle = 'rgba(0,0,0,0.20)';
     ctx.fillRect(-BODY_W / 2 + 5, -BODY_H / 2 + 6, BODY_W, BODY_H);
 
-    // Body — no outline
+    // Body – no outline
     ctx.fillStyle = '#e63030';
     ctx.fillRect(-BODY_W / 2, -BODY_H / 2, BODY_W, BODY_H);
 

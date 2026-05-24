@@ -17,15 +17,15 @@
 - [x] FPS-Counter (Dev-Overlay)
 - [x] Responsive Canvas Scaling
 
-## Phase 2: Physik der Seifenkiste (Priority: Critical)
+## Phase 2: Physik der Seifenkiste ✅
 
-- [ ] `Car`-Klasse mit Position, Velocity, Angle
-- [ ] Beschleunigung durch "Gravity" (bergab)
-- [ ] Lenkung mit Trägheit (angular velocity)
-- [ ] Geschwindigkeitsabhängige Lenkempfindlichkeit
-- [ ] Reibung / Drag (Straße vs. Gras)
-- [ ] Rotation Damping
-- [ ] Feintuning des Fahrgefühls
+- [x] `Car`-Klasse mit Position, Velocity, Angle  (vx/vy + angle + angularVel)
+- [x] Beschleunigung durch "Gravity" (bergab)  — entlang Track-Tangente
+- [x] Lenkung mit Trägheit (angular velocity)  — inkl. Damping
+- [x] Geschwindigkeitsabhängige Lenkempfindlichkeit
+- [x] Reibung / Drag (Straße vs. Gras)  — separates drag + lateral grip
+- [x] Rotation Damping
+- [x] Feintuning des Fahrgefühls  — Rolling start, bounce collision response
 
 ## Phase 3: Prozedurale Strecke ✅
 
@@ -70,4 +70,4 @@
 
 ---
 
-**Aktueller Status:** Phase 4 abgeschlossen. Als nächstes: Phase 2 (Physik) — dann greifen Kollisionen und Lenkung zusammen.
+**Aktueller Status:** Phase 2 abgeschlossen. Physik, Kollisionen und Lenkung greifen zusammen. Als nächstes: Phase 6 (Timer, Highscore) oder Phase 5 (Pseudo-3D).

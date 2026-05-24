@@ -9,7 +9,7 @@ export type GameState = 'menu' | 'race' | 'crash' | 'finish' | 'highscores';
 const TARGET_W      = 1280;
 const TARGET_H      = 720;
 const FIXED_DT      = 1 / 60;  // 60 Hz physics tick
-const CAM_AHEAD     = 120;      // world units camera looks ahead of car
+const CAM_AHEAD     = 180;      // world units camera looks ahead of car
 
 /**
  * Core game loop and state machine.
@@ -136,7 +136,7 @@ export class Game {
       return;
     }
 
-    this.car.update(dt, this.track);
+    this.car.update(dt, this.input.steerAxis, this.track);
 
     // Clamp car at finish
     if (this.car.dist >= this.track.finishDist) {
@@ -358,6 +358,14 @@ export class Game {
     ctx.font = '400 13px "Open Sans", sans-serif';
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.fillText(`${this.fps} fps`, 10, 20);
+
+    if (this.state === 'race') {
+      const kmh = Math.round(this.car.speed * 0.18); // u/s → rough km/h
+      ctx.font = '700 16px "Open Sans", sans-serif';
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillText(`${kmh} km/h`, 10, 42);
+    }
+
     ctx.restore();
   }
 }
