@@ -212,27 +212,10 @@ export class Game {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Placeholder car — flat comic shapes with outline
+    // Car — body + 2 axles + 2 tires
     ctx.save();
     ctx.translate(cx, canvas.height / 2);
-
-    // Body
-    ctx.fillStyle = '#e63030';
-    ctx.strokeStyle = '#111111';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.rect(-20, -35, 40, 70);
-    ctx.fill();
-    ctx.stroke();
-
-    // Wheels
-    ctx.fillStyle = '#222222';
-    const wheels = [[-24, -30], [14, -30], [-24, 12], [14, 12]] as const;
-    for (const [wx, wy] of wheels) {
-      ctx.beginPath();
-      ctx.rect(wx, wy, 10, 18);
-      ctx.fill();
-    }
+    this.drawCar(ctx);
     ctx.restore();
 
     // ESC hint — black on grass strip
@@ -242,6 +225,52 @@ export class Game {
     ctx.font = '400 14px "Open Sans", sans-serif';
     ctx.fillText('[ESC] Menü', canvas.width - 14, canvas.height - 14);
     ctx.restore();
+  }
+
+  /**
+   * Draw the soapbox car centered at the current canvas origin.
+   * Front of car points toward negative Y (uphill on screen = into the track).
+   *
+   * Structure:
+   *   - Body:       long rectangle, no outline
+   *   - Rear axle:  black rectangle, wider than body
+   *   - Front axle: black rectangle, wider than body
+   *   - Two tires:  black rounded rects at the ends of each axle
+   */
+  private drawCar(ctx: CanvasRenderingContext2D): void {
+    const bodyW = 28;
+    const bodyH = 68;
+    const axleW = 52;   // extends 12px beyond body on each side
+    const axleH = 7;
+    const tireW = 13;
+    const tireH = 22;
+    const tireR = 3;    // corner radius for rounded tire
+
+    // ── Body (no outline) ────────────────────────────────────────────
+    ctx.fillStyle = '#e63030';
+    ctx.fillRect(-bodyW / 2, -bodyH / 2, bodyW, bodyH);
+
+    // ── Axles ────────────────────────────────────────────────────────
+    ctx.fillStyle = '#111111';
+    const rearY  = bodyH / 2 - 14;   // rear axle (bottom)
+    const frontY = -(bodyH / 2 - 14); // front axle (top)
+
+    ctx.fillRect(-axleW / 2, rearY  - axleH / 2, axleW, axleH);
+    ctx.fillRect(-axleW / 2, frontY - axleH / 2, axleW, axleH);
+
+    // ── Tires (rounded rects, one pair per axle) ─────────────────────
+    ctx.fillStyle = '#111111';
+    const tireOffsetX = axleW / 2 - tireW / 2;
+
+    for (const axleY of [rearY, frontY]) {
+      for (const side of [-1, 1]) {
+        const tx = side * tireOffsetX - tireW / 2;
+        const ty = axleY - tireH / 2;
+        ctx.beginPath();
+        ctx.roundRect(tx, ty, tireW, tireH, tireR);
+        ctx.fill();
+      }
+    }
   }
 
   private renderHUD(): void {
