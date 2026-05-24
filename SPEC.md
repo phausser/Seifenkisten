@@ -1,0 +1,187 @@
+# Seifenkisten Rennen - Game Specification
+
+## 1. Project Overview
+
+**Game Title:** Seifenkisten Rennen: Time Drift  
+**Genre:** 2D Top-Down Racing with Pseudo-3D Effects  
+**Theme:** Time Travel Soapbox Derby  
+**Platform:** Web (HTML5 + TypeScript)  
+**Duration:** Single race ~25-35 seconds  
+**Core Loop:** Steer your soapbox car down a procedurally generated downhill track, avoid obstacles, reach the finish line as fast as possible. Collisions cost time.
+
+**Visual Style:** Minimalist, clean vector-like graphics with retro-futuristic time travel accents (neon glows, subtle particle trails, scanline effects optional).
+
+## 2. Technical Stack
+
+- **Languages:** HTML5, TypeScript
+- **Rendering:** HTML5 Canvas (2D context with pseudo-3D tricks)
+- **Physics:** Custom simple rigid body physics (no external engine)
+- **Dependencies:** Minimal - only `vite` for build/dev if desired (optional). Pure vanilla TS otherwise.
+- **Architecture:** 
+  - Entity-Component-System inspired (optional simple classes)
+  - Game loop with requestAnimationFrame
+  - State machine (Menu, Race, Crash, Finish, Highscores)
+
+## 3. Game Mechanics
+
+### Player Vehicle
+- **Soapbox Car** (Seifenkiste): Simple rectangular body with wheels, minimalist design.
+- **Controls:**
+  - Left/Right Arrow or A/D: Steer (angular velocity)
+  - Optional: Up/Down for minor acceleration/brake (but mainly gravity driven)
+- **Physics:**
+  - Downhill gravity acceleration
+  - Realistic momentum and inertia
+  - Velocity-dependent turning radius (harder to turn at high speed)
+  - Friction (road + grass/off-track)
+  - Rotation damping
+  - Collision response: bouncy but forgiving
+
+### Track
+- **Generation:** Procedurally generated curvy path, always downhill.
+  - Length: Designed for ~28-35 seconds optimal run.
+  - Width: Varies slightly (wider in straights, narrower in curves).
+  - Curvature: Smooth bezier or spline-based path with noise.
+  - Background: Simple grass + road texture (procedural stripes).
+  - Sides: Dense hay bales as barriers.
+- **Perspective:** Top-down with pseudo-3D:
+  - Road edges drawn with perspective scaling.
+  - Objects scale slightly based on "depth" (Y position in world).
+  - Horizon line with subtle parallax.
+  - Speed lines and motion blur effect on high velocity.
+
+### Obstacles
+- **Hay Bales (Strohballen)**: Round/rectangular, static, scattered on track and sides.
+- **Tires (Autoreifen)**: Circular, some static, maybe slow rolling ones.
+- **Other:** Occasional rocks or time-rift visual markers.
+- Collision with any obstacle:
+  - Car is pushed back toward track center.
+  - 3 second time penalty (visual timer freeze + screen flash).
+  - Minor velocity loss.
+
+### Progression & Goals
+- **Start Line:** Clear starting position with countdown.
+- **Finish Line:** Banner + confetti/time travel particles.
+- **Time Attack:** Primary goal is lowest total time.
+- **High Scores:** LocalStorage-based leaderboard (top 10).
+  - Shows: Time, Date, Name (prompt for initials on new high score).
+
+### Time Travel Theme
+- Visuals: Subtle chronal energy trails behind car.
+- On collision: Brief "time ripple" effect + screen desaturation.
+- Background music: Retro synth with ticking clock elements (or placeholder).
+- Finish: "Temporal checkpoint reached" message.
+
+## 4. Game States
+
+1. **Main Menu**
+   - Title with retro font
+   - "Start Race"
+   - "High Scores"
+   - "Controls"
+
+2. **Race**
+   - Active gameplay
+   - Timer (large, top-left)
+   - Mini-map or progress bar (bottom)
+   - Current speed indicator
+
+3. **Crash State** (short)
+   - Freeze + push animation
+   - Time penalty display
+
+4. **Finish**
+   - Final time
+   - New high score prompt if applicable
+   - "Race Again"
+
+5. **High Scores Screen**
+
+## 5. Graphics & Assets
+
+**All assets procedural/vector where possible:**
+
+- **Car:** Polygon body + 4 wheels (rotating).
+- **Road:** Bezier path with dashed center line, perspective trapezoids.
+- **Hay Bale:** Yellow/brown circles + lines.
+- **Tire:** Black circle with inner details.
+- **Particles:** Dust, sparks, time energy (simple dots/lines).
+- **UI:** Clean sans-serif with neon accents.
+
+**Pseudo-3D Techniques:**
+- Road rendered as series of trapezoids with increasing width toward bottom.
+- Objects positioned with `scale = 1 + (y / maxY) * factor`.
+- Simple shadow casting.
+
+## 6. Physics Implementation
+
+- World coordinates: Y increases downhill.
+- Gravity constant applied to forward velocity.
+- Angular velocity for steering.
+- Velocity vector + position.
+- Simple circle/rectangle collision detection.
+- Response: Separate + impulse.
+
+## 7. Features List (MVP)
+
+**Must Have:**
+- Procedural track generation
+- Car physics (momentum, steering, gravity)
+- Collision with obstacles & borders
+- Time penalty on crash
+- Timer
+- Start/Finish
+- High score list
+- Responsive canvas (720p or 1280x720 target)
+
+**Nice to Have:**
+- Sound effects (Web Audio API)
+- Multiple track seeds / difficulty
+- Ghost replay of best run
+- Mobile touch controls
+- Particle polish
+
+## 8. File Structure (Suggested)
+
+```
+seifenkisten-rennen/
+├── index.html
+├── src/
+│   ├── main.ts
+│   ├── game/
+│   │   ├── Game.ts
+│   │   ├── Track.ts
+│   │   ├── Car.ts
+│   │   ├── Obstacle.ts
+│   │   ├── Physics.ts
+│   │   └── ParticleSystem.ts
+│   ├── utils/
+│   ├── ui/
+│   └── assets/ (if any)
+├── tsconfig.json
+└── vite.config.ts (optional)
+```
+
+## 9. Development Roadmap
+
+1. Canvas setup + game loop
+2. Basic car movement + gravity
+3. Procedural track rendering
+4. Collision detection + response
+5. Obstacles + time penalty
+6. Timer + finish condition
+7. High scores + menu
+8. Polish: particles, pseudo-3D, UI
+
+## 10. Success Criteria
+
+- Fun, responsive controls with good "weight"
+- Track feels fair but challenging
+- Consistent 60 FPS
+- Addictive "one more run" factor
+- Complete within ~800-1500 LOC (small project)
+
+---
+
+**Next Steps:**  
+Implement core physics and track generation first. Let me know if you want code skeletons for specific classes!
