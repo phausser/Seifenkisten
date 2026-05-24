@@ -194,8 +194,11 @@ export class Game {
       for (const obs of this.obstacles) {
         const dx = this.car.worldX - obs.wx;
         const dy = this.car.worldY - obs.wy;
-        if (Math.hypot(dx, dy) < CAR_RADIUS + obs.radius) {
-          this.triggerCrash();
+        const dist = Math.hypot(dx, dy);
+        const minDist = CAR_RADIUS + obs.radius;
+        if (dist < minDist) {
+          const normal = this.obstacleNormal(dx, dy, dist);
+          this.triggerObstacleCrash(normal.nx, normal.ny, minDist - dist + 8);
           break; // one collision per tick
         }
       }
@@ -232,6 +235,23 @@ export class Game {
     this.raceTime += PENALTY_SECONDS;
     this.crashFlash = 1.0;
     this.crashPopup = 0.9;
+  }
+
+  private triggerObstacleCrash(nx: number, ny: number, pushOut: number): void {
+    this.car.onObstacleCollision(this.track, nx, ny, pushOut);
+    this.raceTime += PENALTY_SECONDS;
+    this.crashFlash = 1.0;
+    this.crashPopup = 0.9;
+  }
+
+  private obstacleNormal(dx: number, dy: number, dist: number): { nx: number; ny: number } {
+    if (dist > 0.0001) {
+      return { nx: dx / dist, ny: dy / dist };
+    }
+
+    const s = this.track.getSampleAtDist(this.car.dist);
+    const side = this.car.lateralOffset >= 0 ? 1 : -1;
+    return { nx: s.nx * side, ny: s.ny * side };
   }
 
   private updateFinish(_dt: number): void {

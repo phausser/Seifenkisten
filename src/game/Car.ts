@@ -210,6 +210,38 @@ export class Car {
     this.frozen = 0.45;
   }
 
+  /**
+   * Separates the car from a circular obstacle and gives it a small escape push.
+   * The normal must point from the obstacle center toward the car.
+   */
+  onObstacleCollision(track: Track, nx: number, ny: number, pushOut: number): void {
+    this.worldX += nx * pushOut;
+    this.worldY += ny * pushOut;
+
+    const normalSpeed = this.vx * nx + this.vy * ny;
+    if (normalSpeed < 0) {
+      this.vx -= nx * normalSpeed * 1.6;
+      this.vy -= ny * normalSpeed * 1.6;
+    }
+
+    const escapeSpeed = this.vx * nx + this.vy * ny;
+    if (escapeSpeed < 95) {
+      this.vx += nx * (95 - escapeSpeed);
+      this.vy += ny * (95 - escapeSpeed);
+    }
+
+    this.vx *= 0.62;
+    this.vy *= 0.62;
+    this.angularVel = 0;
+
+    const s = track.getSampleAtDist(this.dist);
+    const dx = this.worldX - s.x;
+    const dy = this.worldY - s.y;
+    this.lateralOffset = dx * s.nx + dy * s.ny;
+
+    this.frozen = 0.35;
+  }
+
   // ─── Accessors ─────────────────────────────────────────────────────────────
 
   /** Current scalar speed (u/s) – used by the HUD. */
