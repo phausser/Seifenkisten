@@ -76,19 +76,19 @@ Running features:
 - ~30 obstacles on road (hay bales + tires), seeded placement
 - Collision detection: circle-circle (CAR_RADIUS=18); border check via lateralOffset
 - Crash response: bounce lateralOffset, 0.45 s freeze, red flash, "−3s" popup
-- All 3D objects have flat offset shadows (dx=5, dy=6); no outlines
+- All 3D objects have soft blurred offset shadows; no outlines
 
 Next: **Phase 2** — replace `Car.update()` with gravity + steering + friction. `lateralOffset` and `frozen` hooks are already in place.
 
 ## Visual Style
 - **Aesthetic:** Minimalist, flat comic — hard outlines, no gradients
-- **No glow effects:** `shadowBlur` / `shadowColor` must never be set
+- **Shadows:** all cast shadows are soft/blurred offset shadows using Canvas shadow settings; keep them subtle and natural, not neon/glow effects
 - **Font:** `"Open Sans", sans-serif` — loaded via Google Fonts
   - Weights used: 400 (body), 700 (labels), 800 (title)
 - **Text color rule:** white (`#ffffff`) on dark backgrounds, black (`#111111`) on light
 - **Palette (base):**
   - Page/canvas bg: `#f5f2eb` (warm off-white)
-  - Grass: `#6abf3a` (flat comic green)
+  - Grass: `#2fb51d` (saturated grass green)
   - Road: `#b0aead` (mid gray)
   - Road borders / outlines: `#111111`
   - Car body: `#e63030` (flat red)

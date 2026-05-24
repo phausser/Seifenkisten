@@ -111,7 +111,7 @@
 **Pseudo-3D Techniques:**
 - Road rendered as series of trapezoids with increasing width toward bottom.
 - Objects positioned with `scale = 1 + (y / maxY) * factor`.
-- Simple shadow casting.
+- Soft blurred offset shadows for all cast shadows.
 
 ## 6. Physics Implementation
 

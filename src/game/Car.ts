@@ -2,16 +2,18 @@ import type { Track } from './Track';
 
 // ─── Geometry constants (world units, local origin) ───────────────────────────
 
-const BODY_W  = 28;
-const BODY_H  = 68;
-const AXLE_W  = 52;
-const AXLE_H  = 7;
-const TIRE_W  = 13;
-const TIRE_H  = 22;
-const TIRE_R  = 3;
+const BODY_W = 24;
+const BODY_H = 66;
+const AXLE_W = 58;
+const AXLE_H = 7;
+const TIRE_W = 13;
+const TIRE_H = 22;
+const TIRE_R = 3;
+const SHADOW_COLOR = 'rgba(0,0,0,0.50)';
+const SHADOW_BLUR = 10;
 
-const REAR_Y  =  BODY_H / 2 - 14;
-const FRONT_Y = -BODY_H / 2 + 14;
+const REAR_Y = BODY_H / 2 - 14;
+const FRONT_Y = -BODY_H / 2 + 15;
 
 /** Bounding circle radius used for collision detection. */
 export const CAR_RADIUS = 18;
@@ -19,34 +21,34 @@ export const CAR_RADIUS = 18;
 // ─── Physics tuning ───────────────────────────────────────────────────────────
 
 /** Downhill acceleration – applied along the track tangent direction (u/s²). */
-const GRAVITY             = 240;
+const GRAVITY = 240;
 
 /** Linear drag on the road surface.  Terminal velocity ≈ GRAVITY / ROAD_DRAG. */
-const ROAD_DRAG           = 0.72;   // terminal ≈ 333 u/s
+const ROAD_DRAG = 0.72;   // terminal ≈ 333 u/s
 
 /** Much higher drag off-road so the car slows noticeably on grass. */
-const GRASS_DRAG          = 3.2;    // terminal ≈  75 u/s
+const GRASS_DRAG = 3.2;    // terminal ≈  75 u/s
 
 /** Lateral velocity is killed this fraction per second on road (high = grippy). */
-const LATERAL_GRIP        = 9.0;
+const LATERAL_GRIP = 9.0;
 
 /** Reduced grip on grass – the car slides more. */
-const GRASS_LATERAL_GRIP  = 1.8;
+const GRASS_LATERAL_GRIP = 1.8;
 
 /** Angular acceleration from a full steer input at zero speed (rad/s²). */
-const STEER_ACCEL         = 5.5;
+const STEER_ACCEL = 5.5;
 
 /** Speed-dependent steer reduction:  effective = STEER_ACCEL / (1 + v * k). */
-const STEER_SPEED_FACTOR  = 0.0028;
+const STEER_SPEED_FACTOR = 0.0028;
 
 /** Angular velocity exponential decay rate (1/s). */
-const ANG_DAMP            = 7.0;
+const ANG_DAMP = 7.0;
 
 /** Hard velocity cap (u/s). */
-const MAX_SPEED           = 500;
+const MAX_SPEED = 500;
 
 /** Starting speed along track so the car rolls immediately (u/s). */
-const INIT_SPEED          = 90;
+const INIT_SPEED = 90;
 
 /**
  * The player's soapbox car – Phase 2 full physics.
@@ -69,15 +71,15 @@ const INIT_SPEED          = 90;
  */
 export class Car {
   // World state
-  worldX     = 0;
-  worldY     = 0;
-  vx         = 0;
-  vy         = 0;
-  angle      = 0;
+  worldX = 0;
+  worldY = 0;
+  vx = 0;
+  vy = 0;
+  angle = 0;
   angularVel = 0;
 
   // Track-relative (derived each tick)
-  dist          = 0;
+  dist = 0;
   lateralOffset = 0;
 
   /** Seconds remaining in post-crash freeze. */
@@ -109,16 +111,16 @@ export class Car {
     }
 
     // ── Sample track at current progress ──────────────────────────────────────
-    const s      = track.getSampleAtDist(this.dist);
+    const s = track.getSampleAtDist(this.dist);
     const onRoad = Math.abs(this.lateralOffset) < s.halfWidth - CAR_RADIUS * 0.5;
-    const drag   = onRoad ? ROAD_DRAG  : GRASS_DRAG;
-    const grip   = onRoad ? LATERAL_GRIP : GRASS_LATERAL_GRIP;
+    const drag = onRoad ? ROAD_DRAG : GRASS_DRAG;
+    const grip = onRoad ? LATERAL_GRIP : GRASS_LATERAL_GRIP;
 
     // ── Car heading directions ─────────────────────────────────────────────────
-    const fwdX  =  Math.sin(this.angle);   // forward X
-    const fwdY  = -Math.cos(this.angle);   // forward Y
-    const perpX =  Math.cos(this.angle);   // perpendicular axis X
-    const perpY =  Math.sin(this.angle);   // perpendicular axis Y
+    const fwdX = Math.sin(this.angle);   // forward X
+    const fwdY = -Math.cos(this.angle);   // forward Y
+    const perpX = Math.cos(this.angle);   // perpendicular axis X
+    const perpY = Math.sin(this.angle);   // perpendicular axis Y
 
     // ── Gravity – downhill force along track tangent ───────────────────────────
     this.vx += s.tx * GRAVITY * dt;
@@ -133,7 +135,7 @@ export class Car {
 
     // ── Lateral grip – kill perpendicular velocity ─────────────────────────────
     const perpSpeed = this.vx * perpX + this.vy * perpY;
-    const killFrac  = Math.min(1, grip * dt);
+    const killFrac = Math.min(1, grip * dt);
     this.vx -= perpX * perpSpeed * killFrac;
     this.vy -= perpY * perpSpeed * killFrac;
 
@@ -149,7 +151,7 @@ export class Car {
     const steerRate = STEER_ACCEL / (1 + speed * STEER_SPEED_FACTOR);
     this.angularVel -= steer * steerRate * dt;
     this.angularVel *= Math.exp(-ANG_DAMP * dt);
-    this.angle      += this.angularVel * dt;
+    this.angle += this.angularVel * dt;
 
     // ── Integrate position ────────────────────────────────────────────────────
     this.worldX += this.vx * dt;
@@ -158,12 +160,12 @@ export class Car {
     // ── Update track-relative state ────────────────────────────────────────────
     // Advance dist by the component of velocity along the track tangent
     this.dist += (this.vx * s.tx + this.vy * s.ty) * dt;
-    this.dist  = Math.max(0, Math.min(track.totalLength, this.dist));
+    this.dist = Math.max(0, Math.min(track.totalLength, this.dist));
 
     // Lateral offset = projection of (worldPos − trackCenter) onto left-normal
     const sNew = track.getSampleAtDist(this.dist);
-    const dx   = this.worldX - sNew.x;
-    const dy   = this.worldY - sNew.y;
+    const dx = this.worldX - sNew.x;
+    const dy = this.worldY - sNew.y;
     this.lateralOffset = dx * sNew.nx + dy * sNew.ny;
   }
 
@@ -177,10 +179,10 @@ export class Car {
     const s = track.getSampleAtDist(this.dist);
 
     // Perpendicular / forward directions
-    const perpX =  Math.cos(this.angle);
-    const perpY =  Math.sin(this.angle);
-    const fwdX  =  Math.sin(this.angle);
-    const fwdY  = -Math.cos(this.angle);
+    const perpX = Math.cos(this.angle);
+    const perpY = Math.sin(this.angle);
+    const fwdX = Math.sin(this.angle);
+    const fwdY = -Math.cos(this.angle);
 
     // Bounce lateral velocity (reflect + damp)
     const perpSpeed = this.vx * perpX + this.vy * perpY;
@@ -199,10 +201,10 @@ export class Car {
     const maxLat = s.halfWidth - CAR_RADIUS - 4;
     if (Math.abs(this.lateralOffset) > maxLat) {
       const clamped = Math.sign(this.lateralOffset) * maxLat;
-      const delta   = clamped - this.lateralOffset;
-      this.worldX        += s.nx * delta;
-      this.worldY        += s.ny * delta;
-      this.lateralOffset  = clamped;
+      const delta = clamped - this.lateralOffset;
+      this.worldX += s.nx * delta;
+      this.worldY += s.ny * delta;
+      this.lateralOffset = clamped;
     }
 
     this.frozen = 0.45;
@@ -223,11 +225,13 @@ export class Car {
     W: number, H: number,
   ): void {
     const sx = this.worldX - camX + W * 0.5;
-    const sy = this.worldY - camY + H * 0.5;
+    const sy = camY - this.worldY + H * 0.5;   // Y flipped
 
     ctx.save();
     ctx.translate(sx, sy);
-    ctx.rotate(this.angle);
+    // With Y flipped, the canvas draw angle must be mirrored so the car
+    // faces the direction of travel (upward on screen).
+    ctx.rotate(Math.PI - this.angle);
     Car.drawShape(ctx);
     ctx.restore();
   }
@@ -240,19 +244,33 @@ export class Car {
     const tireOffX = AXLE_W / 2 - TIRE_W / 2;
 
     // Shadow under body
-    ctx.fillStyle = 'rgba(0,0,0,0.20)';
-    ctx.fillRect(-BODY_W / 2 + 5, -BODY_H / 2 + 6, BODY_W, BODY_H);
+    ctx.save();
+    ctx.fillStyle = SHADOW_COLOR;
+    ctx.filter = `blur(${SHADOW_BLUR}px)`;
+    ctx.beginPath();
+    ctx.roundRect(-BODY_W / 2 + 5, -BODY_H / 2 + 6, BODY_W, BODY_H, BODY_W / 2);
+    ctx.fill();
+    ctx.restore();
 
-    // Body – no outline
+    // Axles behind the body
     ctx.fillStyle = '#e63030';
-    ctx.fillRect(-BODY_W / 2, -BODY_H / 2, BODY_W, BODY_H);
-
-    // Axles
-    ctx.fillStyle = '#111111';
-    ctx.fillRect(-AXLE_W / 2, REAR_Y  - AXLE_H / 2, AXLE_W, AXLE_H);
+    ctx.fillRect(-AXLE_W / 2, REAR_Y - AXLE_H / 2, AXLE_W, AXLE_H);
     ctx.fillRect(-AXLE_W / 2, FRONT_Y - AXLE_H / 2, AXLE_W, AXLE_H);
 
+    // Body: slim soapbox shape with rounded front.
+    ctx.fillStyle = '#e63030';
+    ctx.beginPath();
+    ctx.roundRect(-BODY_W / 2, -BODY_H / 2, BODY_W, BODY_H, BODY_W / 2);
+    ctx.fill();
+
+    // Rear circular highlight.
+    ctx.fillStyle = '#f04a3f';
+    ctx.beginPath();
+    ctx.arc(0, BODY_H * 0.24, BODY_W * 0.30, 0, Math.PI * 2);
+    ctx.fill();
+
     // Tires
+    ctx.fillStyle = '#111111';
     for (const ay of [REAR_Y, FRONT_Y]) {
       for (const side of [-1, 1]) {
         ctx.beginPath();

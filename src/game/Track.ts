@@ -3,13 +3,20 @@ import type { Vec2 } from '../utils/math';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const HALF_WIDTH  = 140;  // road half-width (full road = 280 world units)
+const HALF_WIDTH = 140;  // road half-width (full road = 280 world units)
 const SAMPLE_STEP = 10;   // arc-length between stored samples
-const YSTEP       = 560;  // Y spacing between track waypoints
-const NUM_SEGS    = 15;   // number of curved segments (→ ~30 s at 280 u/s)
-const BALE_EVERY  = 115;  // arc-length between hay-bale pairs
-const BALE_R      = 22;   // hay-bale radius (world units)
-const BALE_OFF    = 6;    // how far outside road edge bale centers sit
+const YSTEP = 560;  // Y spacing between track waypoints
+const NUM_SEGS = 15;   // number of curved segments (→ ~30 s at 280 u/s)
+const BALE_EVERY = 78;   // arc-length between hay-bale pairs
+const BALE_R = 22;   // hay-bale radius (world units)
+const BALE_OFF = BALE_R - 3; // keeps the inner edge close to the road edge
+const SHADOW_COLOR = 'rgba(0,0,0,0.50)';
+const SHADOW_BLUR = 10;
+const HAY_FILL = '#e0b23a';
+const HAY_DARK = '#bc8d24';
+const HAY_LIGHT = '#f0cf66';
+const HAY_LINE_COUNT = 12;
+const BALE_ANGLE_JITTER = Math.PI / 36; // ±5°
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,21 +28,21 @@ export interface TrackSample {
   dist: number;            // arc-length from track origin
 }
 
-interface Bale { wx: number; wy: number; }
+interface Bale { wx: number; wy: number; angle: number; }
 
 // ─── Track class ──────────────────────────────────────────────────────────────
 
 export class Track {
   readonly samples: TrackSample[] = [];
-  readonly bales:   Bale[]        = [];
+  readonly bales: Bale[] = [];
   readonly totalLength: number;
-  readonly finishDist:  number;
+  readonly finishDist: number;
 
   constructor(seed = 1337) {
     const pts = this.genWaypoints(seed);
     this.buildSamples(pts);
     this.totalLength = this.samples.at(-1)?.dist ?? 0;
-    this.finishDist  = this.totalLength - 280;
+    this.finishDist = this.totalLength - 280;
     this.placeBales(seed ^ 0xBEEF);
   }
 
@@ -57,10 +64,10 @@ export class Track {
 
     // Straight closing + ghost points
     const lx = pts.at(-1)!.x;
-    pts.push({ x: lx * 0.5,  y: YSTEP * (NUM_SEGS + 1) });
-    pts.push({ x: 0,          y: YSTEP * (NUM_SEGS + 2) });
-    pts.push({ x: 0,          y: YSTEP * (NUM_SEGS + 3) });
-    pts.push({ x: 0,          y: YSTEP * (NUM_SEGS + 4) });
+    pts.push({ x: lx * 0.5, y: YSTEP * (NUM_SEGS + 1) });
+    pts.push({ x: 0, y: YSTEP * (NUM_SEGS + 2) });
+    pts.push({ x: 0, y: YSTEP * (NUM_SEGS + 3) });
+    pts.push({ x: 0, y: YSTEP * (NUM_SEGS + 4) });
 
     return pts;
   }
@@ -73,8 +80,8 @@ export class Track {
     const SUB = 180; // sub-steps per segment for accurate arc-length walking
 
     let arcDist = 0;
-    let nextAt  = 0;
-    let prev    = catmullRom(pts[0], pts[1], pts[2], pts[3], 0);
+    let nextAt = 0;
+    let prev = catmullRom(pts[0], pts[1], pts[2], pts[3], 0);
 
     for (let seg = 1; seg < pts.length - 2; seg++) {
       const [p0, p1, p2, p3] = [pts[seg - 1], pts[seg], pts[seg + 1], pts[seg + 2]];
@@ -99,7 +106,7 @@ export class Track {
             y: pos.y - ty * overshoot,
             tx, ty,
             nx: -ty,  // left normal
-            ny:  tx,
+            ny: tx,
             halfWidth: HALF_WIDTH,
             dist: nextAt,
           });
@@ -118,11 +125,14 @@ export class Track {
 
     for (const s of this.samples) {
       if (s.dist < nextAt) continue;
-      nextAt = s.dist + BALE_EVERY + rng.range(-18, 18);
+      nextAt = s.dist + BALE_EVERY + rng.range(-24, 24);
 
-      const off = s.halfWidth + BALE_OFF + rng.range(0, 14);
-      this.bales.push({ wx: s.x + s.nx * off, wy: s.y + s.ny * off }); // left
-      this.bales.push({ wx: s.x - s.nx * off, wy: s.y - s.ny * off }); // right
+      const off = s.halfWidth + BALE_OFF + rng.range(0, 6);
+      const baseAngle = Math.atan2(-s.ty, s.tx);
+      const leftAngle = baseAngle + rng.range(-BALE_ANGLE_JITTER, BALE_ANGLE_JITTER);
+      const rightAngle = baseAngle + rng.range(-BALE_ANGLE_JITTER, BALE_ANGLE_JITTER);
+      this.bales.push({ wx: s.x + s.nx * off, wy: s.y + s.ny * off, angle: leftAngle }); // left
+      this.bales.push({ wx: s.x - s.nx * off, wy: s.y - s.ny * off, angle: rightAngle }); // right
     }
   }
 
@@ -155,8 +165,8 @@ export class Track {
   getEdgesAt(worldY: number): { cx: number; leftX: number; rightX: number } {
     const s = this.samples[this.idxAtY(worldY)];
     return {
-      cx:     s.x,
-      leftX:  s.x + s.nx * s.halfWidth,
+      cx: s.x,
+      leftX: s.x + s.nx * s.halfWidth,
       rightX: s.x - s.nx * s.halfWidth,
     };
   }
@@ -175,44 +185,77 @@ export class Track {
     if (hi - lo < 2) return;
 
     const slice = this.samples.slice(lo, hi + 1);
-    const sx = (wx: number) => wx - camX + W * 0.5;
-    const sy = (wy: number) => wy - camY + H * 0.5;
+    const scx = (wx: number) => wx - camX + W * 0.5;
+    // Y is flipped: world +Y (downhill) → screen −Y (upward on screen).
+    const scy = (wy: number) => camY - wy + H * 0.5;
 
     // Pre-compute edge arrays
-    const lx = slice.map(s => sx(s.x + s.nx * s.halfWidth));
-    const ly = slice.map(s => sy(s.y + s.ny * s.halfWidth));
-    const rx = slice.map(s => sx(s.x - s.nx * s.halfWidth));
-    const ry = slice.map(s => sy(s.y - s.ny * s.halfWidth));
+    const lx: number[] = [];
+    const ly: number[] = [];
+    const rx: number[] = [];
+    const ry: number[] = [];
 
-    // ── Road fill ─────────────────────────────────────────────────────────────
-    ctx.fillStyle = '#b0aead';
-    ctx.beginPath();
-    ctx.moveTo(lx[0], ly[0]);
-    for (let i = 1; i < slice.length; i++) ctx.lineTo(lx[i], ly[i]);
-    for (let i = slice.length - 1; i >= 0; i--) ctx.lineTo(rx[i], ry[i]);
-    ctx.closePath();
-    ctx.fill();
+    for (const s of slice) {
+      lx.push(scx(s.x + s.nx * s.halfWidth));
+      ly.push(scy(s.y + s.ny * s.halfWidth));
+      rx.push(scx(s.x - s.nx * s.halfWidth));
+      ry.push(scy(s.y - s.ny * s.halfWidth));
+    }
 
-    // ── Border lines ──────────────────────────────────────────────────────────
-    ctx.strokeStyle = '#111111';
-    ctx.lineWidth = 5;
-    ctx.lineJoin = 'round';
-    this.polyline(ctx, lx, ly);
-    this.polyline(ctx, rx, ry);
+    // ── Road fill: per-segment quads with alternating stripes ─────────────────
+    // Each stripe pair spans STRIPE_LEN arc-length units.
+    const STRIPE_LEN = 65;
+    for (let i = 0; i < slice.length - 1; i++) {
+      const even = Math.floor(slice[i].dist / STRIPE_LEN) % 2 === 0;
+      ctx.fillStyle = even ? '#b4b2b0' : '#a9a7a5';
+      ctx.beginPath();
+      ctx.moveTo(lx[i], ly[i]);
+      ctx.lineTo(lx[i + 1], ly[i + 1]);
+      ctx.lineTo(rx[i + 1], ry[i + 1]);
+      ctx.lineTo(rx[i], ry[i]);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // ── Center dashes ─────────────────────────────────────────────────────────
+    // One dash per stripe (every 2 * STRIPE_LEN).
+    const DASH_LEN = 28;
+    const DASH_W = 7;
+    for (let i = 0; i < slice.length - 1; i++) {
+      const s = slice[i];
+      const sn = slice[i + 1];
+      const seg = Math.floor(s.dist / STRIPE_LEN);
+      if (seg % 2 !== 0) continue;          // only one stripe out of two
+      // Use midpoint between the two samples
+      const my = scy((s.y + sn.y) * 0.5);
+      const mx = scx((s.x + sn.x) * 0.5);
+      const tx = (s.tx + sn.tx) * 0.5;
+      const ty = (s.ty + sn.ty) * 0.5;
+      const angle = Math.atan2(-ty, tx);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      this.renderDash(ctx, mx, my, angle, DASH_LEN, DASH_W);
+    }
 
     // ── Hay bales ─────────────────────────────────────────────────────────────
     this.renderBales(ctx, camX, camY, W, H);
 
     // ── Start & finish lines ──────────────────────────────────────────────────
-    this.renderLine(ctx, camX, camY, W, H, 0,               '#22cc44', 'START');
-    this.renderLine(ctx, camX, camY, W, H, this.finishDist,  '#e63030', 'ZIEL');
+    this.renderLine(ctx, camX, camY, W, H, 0, '#22cc44', 'START');
+    this.renderLine(ctx, camX, camY, W, H, this.finishDist, '#e63030', 'ZIEL');
   }
 
-  private polyline(ctx: CanvasRenderingContext2D, xs: number[], ys: number[]): void {
-    ctx.beginPath();
-    ctx.moveTo(xs[0], ys[0]);
-    for (let i = 1; i < xs.length; i++) ctx.lineTo(xs[i], ys[i]);
-    ctx.stroke();
+  private renderDash(
+    ctx: CanvasRenderingContext2D,
+    x: number, y: number,
+    angle: number,
+    len: number, width: number,
+  ): void {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.fillRect(-len * 0.5, -width * 0.5, len, width);
+    ctx.restore();
   }
 
   private renderLine(
@@ -223,17 +266,18 @@ export class Track {
     color: string,
     label: string,
   ): void {
-    const s  = this.getSampleAtDist(dist);
+    const s = this.getSampleAtDist(dist);
+    // Y flipped
     const cx = s.x - camX + W * 0.5;
-    const cy = s.y - camY + H * 0.5;
+    const cy = camY - s.y + H * 0.5;
     if (cy < -80 || cy > H + 80) return;
 
+    // Left/right edges — Y component uses minus because scy flips the normal offset
     const lx = (s.x + s.nx * s.halfWidth) - camX + W * 0.5;
-    const ly = (s.y + s.ny * s.halfWidth) - camY + H * 0.5;
+    const ly = camY - (s.y + s.ny * s.halfWidth) + H * 0.5;
     const rx = (s.x - s.nx * s.halfWidth) - camX + W * 0.5;
-    const ry = (s.y - s.ny * s.halfWidth) - camY + H * 0.5;
+    const ry = camY - (s.y - s.ny * s.halfWidth) + H * 0.5;
 
-    // Stripe
     ctx.strokeStyle = color;
     ctx.lineWidth = 10;
     ctx.beginPath();
@@ -241,7 +285,6 @@ export class Track {
     ctx.lineTo(rx, ry);
     ctx.stroke();
 
-    // Label
     ctx.save();
     ctx.textAlign = 'center';
     ctx.font = '700 15px "Open Sans", sans-serif';
@@ -255,33 +298,79 @@ export class Track {
     camX: number, camY: number,
     W: number, H: number,
   ): void {
-    const cull = BALE_R + 20;
+    const scx = (wx: number) => wx - camX + W * 0.5;
+    const scy = (wy: number) => camY - wy + H * 0.5;   // Y flipped
 
     for (const b of this.bales) {
-      const bx = b.wx - camX + W * 0.5;
-      const by = b.wy - camY + H * 0.5;
-      if (by < -cull || by > H + cull || bx < -cull || bx > W + cull) continue;
+      const bx = scx(b.wx);
+      const by = scy(b.wy);
+      const r = BALE_R;
+      const size = r * 1.65;
+
+      if (by < -(r + 20) || by > H + r + 20 || bx < -(r + 20) || bx > W + r + 20) continue;
 
       // Shadow
-      ctx.fillStyle = 'rgba(0,0,0,0.20)';
+      ctx.save();
+      ctx.translate(bx + 4, by + 5);
+      ctx.rotate(b.angle);
+      ctx.fillStyle = SHADOW_COLOR;
+      ctx.filter = `blur(${SHADOW_BLUR}px)`;
       ctx.beginPath();
-      ctx.arc(bx + 5, by + 6, BALE_R, 0, Math.PI * 2);
+      ctx.roundRect(-size * 0.5, -size * 0.5, size, size, 5);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(bx, by);
+      ctx.rotate(b.angle);
+
+      // Body
+      ctx.fillStyle = HAY_FILL;
+      ctx.beginPath();
+      ctx.roundRect(-size * 0.5, -size * 0.5, size, size, 5);
       ctx.fill();
 
-      // Body — no outline
-      ctx.fillStyle = '#d4a017';
+      // Binding
+      ctx.strokeStyle = HAY_DARK;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(bx, by, BALE_R, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Binding detail lines (internal, not an outline)
-      const r = BALE_R * 0.6;
-      ctx.strokeStyle = '#b08010';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(bx - r, by); ctx.lineTo(bx + r, by);
-      ctx.moveTo(bx, by - r); ctx.lineTo(bx, by + r);
+      ctx.moveTo(-size * 0.22, -size * 0.5); ctx.lineTo(-size * 0.22, size * 0.5);
+      ctx.moveTo(size * 0.22, -size * 0.5); ctx.lineTo(size * 0.22, size * 0.5);
       ctx.stroke();
+
+      // Short straw strokes
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = HAY_LIGHT;
+      ctx.beginPath();
+      this.drawHayLines(ctx, size, b.wx * 0.17 + b.wy * 0.11);
+      ctx.stroke();
+      ctx.restore();
     }
+  }
+
+  private drawHayLines(
+    ctx: CanvasRenderingContext2D,
+    size: number,
+    seed: number,
+  ): void {
+    for (let i = 0; i < HAY_LINE_COUNT; i++) {
+      const xRand = Track.seededUnit(seed, i * 4 + 1);
+      const yRand = Track.seededUnit(seed, i * 4 + 2);
+      const aRand = Track.seededUnit(seed, i * 4 + 3);
+      const lRand = Track.seededUnit(seed, i * 4 + 4);
+      const x = (xRand - 0.5) * size * 0.68;
+      const y = (yRand - 0.5) * size * 0.68;
+      const angle = -0.45 + aRand * 0.9;
+      const len = size * (0.16 + lRand * 0.12);
+      const dx = Math.cos(angle) * len * 0.5;
+      const dy = Math.sin(angle) * len * 0.5;
+      ctx.moveTo(x - dx, y - dy);
+      ctx.lineTo(x + dx, y + dy);
+    }
+  }
+
+  private static seededUnit(seed: number, salt: number): number {
+    const n = Math.sin(seed + salt * 12.9898) * 43758.5453;
+    return n - Math.floor(n);
   }
 }

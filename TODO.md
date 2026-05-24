@@ -44,13 +44,13 @@
 - [x] Border-Kollision (Streckenrand, bereit für Phase 2 Physik)
 - [x] Schatten auf allen 3D-Objekten (Heuballen, Reifen, Auto), keine Outlines
 
-## Phase 5: Rendering & Effekte
+## Phase 5: Rendering & Effekte ✅
 
-- [ ] Pseudo-3D Straßenperspektive (Trapez-Segmente)
-- [ ] Objekt-Scaling nach Y-Position
-- [ ] Chronal-Partikeltrail hinter Auto
-- [ ] Geschwindigkeitslinien (Speed Lines)
-- [ ] Horizont mit Parallax
+- [x] Pseudo-3D Straßenperspektive (Trapez-Segmente)  — perspScale 0.65→1.35, alternating stripes + center dashes
+- [x] Objekt-Scaling nach Y-Position                  — alle Hindernisse + Heuballen perspScale'd
+- [x] Chronal-Partikeltrail hinter Auto               — ParticleSystem, cyan/blau, Glow
+- [x] Geschwindigkeitslinien (Speed Lines)            — radial ab 160 u/s
+- [x] Horizont mit Parallax                           — Sky-Gradient + 2 Hügelebenen (20 % / 45 % parallax)
 
 ## Phase 6: Game Systems
 
@@ -70,4 +70,4 @@
 
 ---
 
-**Aktueller Status:** Phase 2 abgeschlossen. Physik, Kollisionen und Lenkung greifen zusammen. Als nächstes: Phase 6 (Timer, Highscore) oder Phase 5 (Pseudo-3D).
+**Aktueller Status:** Phase 2 + 5 abgeschlossen. Als nächstes: Phase 6 (Timer, Highscore).
