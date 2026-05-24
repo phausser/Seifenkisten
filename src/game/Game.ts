@@ -3,6 +3,7 @@ import { Track } from './Track';
 import { Car, CAR_RADIUS } from './Car';
 import { placeObstacles, renderObstacle } from './Obstacle';
 import { ParticleSystem } from './ParticleSystem';
+import { AudioSystem } from './AudioSystem';
 import type { Obstacle } from './Obstacle';
 
 export type GameState = 'menu' | 'countdown' | 'race' | 'crash' | 'finish' | 'highscores';
@@ -14,6 +15,7 @@ const CAM_AHEAD = 180;      // world units camera looks ahead of car
 const PENALTY_SECONDS = 3;
 const HIGHSCORE_KEY = 'seifenkisten.highscores.v1';
 const MAX_HIGHSCORES = 10;
+const RIPPLE_DURATION = 0.48;
 
 interface HighScoreEntry {
   name: string;
@@ -38,6 +40,7 @@ export class Game {
   private car!: Car;
   private obstacles: Obstacle[] = [];
   private particles = new ParticleSystem();
+  private audio = new AudioSystem();
 
   // Camera (world coordinates of screen centre)
   private camX = 0;
@@ -46,11 +49,13 @@ export class Game {
   // Crash feedback
   private crashFlash = 0;  // 0–1, fades after collision
   private crashPopup = 0;  // seconds remaining for "+3s" label
+  private rippleTime = 0;
 
   // Race systems
   private raceTime = 0;
   private finishTime = 0;
   private countdownTime = 3;
+  private countdownBeep = 3;
   private highScores: HighScoreEntry[] = [];
   private pendingHighScoreRank: number | null = null;
   private pendingName = '';
@@ -70,6 +75,7 @@ export class Game {
     if (!ctx) throw new Error('Could not get 2D context');
     this.ctx = ctx;
     this.input = new InputHandler();
+    this.input.attachTouchTarget(canvas);
     this.highScores = this.loadHighScores();
 
     this.initRace();   // pre-generate track so it's ready on first start
@@ -87,9 +93,11 @@ export class Game {
     this.particles.clear();
     this.crashFlash = 0;
     this.crashPopup = 0;
+    this.rippleTime = 0;
     this.raceTime = 0;
     this.finishTime = 0;
     this.countdownTime = 3;
+    this.countdownBeep = 3;
     this.pendingHighScoreRank = null;
     this.pendingName = '';
     const s = this.track.getSampleAtDist(0);
@@ -152,9 +160,11 @@ export class Game {
   }
 
   private updateMenu(_dt: number): void {
-    if (this.input.wasPressed('Space') || this.input.wasPressed('Enter')) {
+    if (this.input.wasPressed('Space') || this.input.wasPressed('Enter') || this.input.wasTouchPressed) {
+      this.audio.resume();
       this.initRace();
       this.setState('countdown');
+      this.audio.start();
     }
     if (this.input.wasPressed('KeyH')) {
       this.setState('highscores');
@@ -167,6 +177,11 @@ export class Game {
       return;
     }
     this.countdownTime -= dt;
+    const nextBeep = Math.ceil(this.countdownTime);
+    if (nextBeep > 0 && nextBeep < this.countdownBeep) {
+      this.countdownBeep = nextBeep;
+      this.audio.countdown();
+    }
     if (this.countdownTime <= 0) {
       this.setState('race');
     }
@@ -186,6 +201,7 @@ export class Game {
       this.car.dist = this.track.finishDist;
       this.finishRace();
       this.setState('finish');
+      this.audio.finish();
       return;
     }
 
@@ -215,6 +231,7 @@ export class Game {
     // ── Crash feedback decay ─────────────────────────────────────────────────
     this.crashFlash = Math.max(0, this.crashFlash - dt * 2.8);
     this.crashPopup = Math.max(0, this.crashPopup - dt);
+    this.rippleTime = Math.max(0, this.rippleTime - dt);
 
     // ── Particle trail ───────────────────────────────────────────────────────
     const speed = this.car.speed;
@@ -235,6 +252,8 @@ export class Game {
     this.raceTime += PENALTY_SECONDS;
     this.crashFlash = 1.0;
     this.crashPopup = 0.9;
+    this.rippleTime = RIPPLE_DURATION;
+    this.audio.crash();
   }
 
   private triggerObstacleCrash(nx: number, ny: number, pushOut: number): void {
@@ -242,6 +261,8 @@ export class Game {
     this.raceTime += PENALTY_SECONDS;
     this.crashFlash = 1.0;
     this.crashPopup = 0.9;
+    this.rippleTime = RIPPLE_DURATION;
+    this.audio.crash();
   }
 
   private obstacleNormal(dx: number, dy: number, dist: number): { nx: number; ny: number } {
@@ -259,9 +280,11 @@ export class Game {
       this.updateNameEntry();
       return;
     }
-    if (this.input.wasPressed('Space') || this.input.wasPressed('Enter')) {
+    if (this.input.wasPressed('Space') || this.input.wasPressed('Enter') || this.input.wasTouchPressed) {
+      this.audio.resume();
       this.initRace();
       this.setState('countdown');
+      this.audio.start();
     }
     if (this.input.wasPressed('Escape')) {
       this.setState('menu');
@@ -275,7 +298,8 @@ export class Game {
     if (
       this.input.wasPressed('Escape') ||
       this.input.wasPressed('Space') ||
-      this.input.wasPressed('Enter')
+      this.input.wasPressed('Enter') ||
+      this.input.wasTouchPressed
     ) {
       this.setState('menu');
     }
@@ -321,6 +345,7 @@ export class Game {
     this.highScores = this.highScores.slice(0, MAX_HIGHSCORES);
     this.saveHighScores();
     this.pendingHighScoreRank = null;
+    this.audio.save();
   }
 
   private getHighScoreRank(time: number): number | null {
@@ -479,6 +504,8 @@ export class Game {
     this.renderSpeedLines(W, H);
 
     // ── Crash flash overlay ───────────────────────────────────────────────────
+    this.renderRipple(W, H);
+
     if (this.crashFlash > 0) {
       ctx.fillStyle = `rgba(210,30,30,${(this.crashFlash * 0.30).toFixed(3)})`;
       ctx.fillRect(0, 0, W, H);
@@ -501,6 +528,52 @@ export class Game {
     ctx.font = '400 14px "Open Sans", sans-serif';
     ctx.fillStyle = '#111111';
     ctx.fillText('[ESC] Menü', W - 14, H - 14);
+    ctx.restore();
+
+    this.renderTouchHints(W, H);
+  }
+
+  private renderRipple(W: number, H: number): void {
+    if (this.rippleTime <= 0) return;
+
+    const t = 1 - this.rippleTime / RIPPLE_DURATION;
+    const { ctx } = this;
+    const cx = W * 0.5;
+    const cy = H * 0.5 + CAM_AHEAD;
+    const radius = 40 + t * 210;
+    const alpha = (1 - t) * 0.42;
+
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+    ctx.lineWidth = 5 + t * 10;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(17,17,17,${(alpha * 0.45).toFixed(3)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.72, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  private renderTouchHints(W: number, H: number): void {
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = '#111111';
+    ctx.beginPath();
+    ctx.roundRect(18, H - 92, 96, 62, 8);
+    ctx.roundRect(W - 114, H - 92, 96, 62, 8);
+    ctx.roundRect(W * 0.5 - 58, H - 92, 116, 62, 8);
+    ctx.fill();
+    ctx.globalAlpha = 0.62;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 30px "Open Sans", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('←', 66, H - 51);
+    ctx.fillText('↓', W * 0.5, H - 51);
+    ctx.fillText('→', W - 66, H - 51);
     ctx.restore();
   }
 
@@ -525,10 +598,11 @@ export class Game {
     ctx.strokeStyle = 'rgba(255,255,255,0.18)';
     ctx.lineWidth = 1.5;
     for (let i = 0; i < numLines; i++) {
-      const angle = (i / numLines) * Math.PI * 2;
-      const len = minLen + Math.random() * (maxLen - minLen);
-      const startR = 55 + Math.random() * 40;
-      ctx.globalAlpha = (0.08 + intensity * 0.22) * (0.5 + Math.random() * 0.5);
+      const phase = this.seededUnit(i, this.frameCount + this.fps * 13);
+      const angle = (i / numLines) * Math.PI * 2 + phase * 0.08;
+      const len = minLen + this.seededUnit(i, 7) * (maxLen - minLen);
+      const startR = 55 + this.seededUnit(i, 11) * 40;
+      ctx.globalAlpha = (0.08 + intensity * 0.22) * (0.5 + this.seededUnit(i, 17) * 0.5);
       ctx.beginPath();
       ctx.moveTo(
         originX + Math.cos(angle) * startR,
@@ -542,6 +616,11 @@ export class Game {
     }
     ctx.globalAlpha = 1;
     ctx.restore();
+  }
+
+  private seededUnit(index: number, salt: number): number {
+    const n = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
+    return n - Math.floor(n);
   }
 
   // ── Finish ─────────────────────────────────────────────────────────────────

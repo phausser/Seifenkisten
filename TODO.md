@@ -62,14 +62,14 @@
 - [x] Highscore System mit LocalStorage (Top 10)
 - [x] Name-Eingabe bei neuem Highscore
 
-## Phase 7: Polish
+## Phase 7: Polish ✅
 
-- [ ] Sound Effekte (Web Audio API)
+- [x] Sound Effekte (Web Audio API)
 - [x] Vollständiges Menü mit Highscore-Screen
-- [ ] Time-Ripple-Effekt bei Kollision
-- [ ] Mobile Touch Support (optional)
-- [ ] Performance Optimierungen
+- [x] Time-Ripple-Effekt bei Kollision
+- [x] Mobile Touch Support (optional)
+- [x] Performance Optimierungen
 
 ---
 
-**Aktueller Status:** Phase 2–6 abgeschlossen. Als nächstes: Phase 7 Polish.
+**Aktueller Status:** Phase 2–7 abgeschlossen.

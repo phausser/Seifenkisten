@@ -22,6 +22,7 @@ src/
     Track.ts           # procedural Catmull-Rom track; samples[], bales[], queries
     Obstacle.ts        # dynamic obstacles: tires (Phase 4)
     ParticleSystem.ts  # subtle dust trail behind car
+    AudioSystem.ts     # small Web Audio sound effects
   ui/                  # menu, HUD, highscores (Phase 6–7)
   utils/
     InputHandler.ts    # keyboard state (held / wasPressed / steerAxis)
@@ -73,7 +74,7 @@ vite.config.ts
 - Dust particles are sparse, brown/tan, non-glowing.
 
 ## Current Status
-**Phase 2–6 complete.** Phase 7 polish remains.
+**Phase 2–7 complete.**
 
 Running features:
 - `npm run dev` → Vite dev server
@@ -85,8 +86,9 @@ Running features:
 - All cast shadows are dark, soft blurred offset shapes using `ctx.filter = blur(...)`; no outlines
 - Sparse dust trail behind the car and speed lines at high velocity
 - Start countdown, race timer, bottom progress bar, finish time panel, LocalStorage top-10 highscores, and 3-letter name entry
+- Web Audio effects for start/countdown/crash/finish/save, crash ripple, canvas touch controls, particle cap, deterministic speed lines
 
-Next: **Phase 7** — polish sound, optional mobile controls, and remaining effects.
+Next: new feature work or tuning.
 
 ## Visual Style
 - **Aesthetic:** Minimalist, flat comic — hard outlines, no gradients

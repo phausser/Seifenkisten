@@ -29,6 +29,7 @@
 - **Controls:**
   - Left/Right Arrow or A/D: Steer (angular velocity)
   - Down Arrow or S: Brake
+  - Touch: left/right bottom zones steer, center bottom zone brakes
 - **Physics:**
   - Downhill gravity acceleration
   - Realistic momentum and inertia
@@ -142,6 +143,8 @@
 - Multiple track seeds / difficulty
 - Ghost replay of best run
 - Mobile touch controls
+- Crash ripple effect
+- Particle cap and deterministic speed-line generation for performance
 - Particle polish
 
 ## 8. File Structure (Suggested)

@@ -39,6 +39,7 @@ src/
     Track.ts           # Prozedurale Strecke + Rand-Heuballen
     Obstacle.ts        # Hindernisse (Phase 4)
     ParticleSystem.ts  # Staubpartikel
+    AudioSystem.ts     # Web-Audio-Soundeffekte
   ui/                  # Menü, HUD, Highscores (Phase 6–7)
   utils/
     InputHandler.ts    # Keyboard State
@@ -55,7 +56,7 @@ src/
 | 4 – Kollisionen | ✅ | Hindernisse, Kollision, Flash, Zeitstrafe, Schatten |
 | 5 – Rendering | ✅ | Top-down Road, Heuballen-Polish, Staub, Speed Lines |
 | 6 – Game Systems | ✅ | Timer, Progress, Countdown, Highscores |
-| 7 – Polish | 🔲 | Sound, UI, Mobile |
+| 7 – Polish | ✅ | Sound, UI, Mobile, Ripple, Performance |
 
 ## Aktueller Look
 
@@ -67,6 +68,7 @@ src/
 - Schlanke rote Seifenkiste mit roten Achsen und schwarzen Reifen
 - Sparsame staubfarbene Partikel hinter dem Auto
 - Start-Countdown, Race-Timer, Fortschrittsleiste und LocalStorage-Bestzeiten
+- Web-Audio-Soundeffekte, Crash-Ripple und Touch-Steuerung
 
 ## Tech Stack
 - **TypeScript** (strict mode)

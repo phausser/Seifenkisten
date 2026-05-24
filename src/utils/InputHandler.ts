@@ -6,6 +6,9 @@ export class InputHandler {
   private held = new Set<string>();
   private justPressed = new Set<string>();
   private justReleased = new Set<string>();
+  private touchSteer = 0;
+  private touchBrake = 0;
+  private touchPressed = false;
 
   constructor() {
     window.addEventListener('keydown', (e) => {
@@ -25,6 +28,38 @@ export class InputHandler {
     });
   }
 
+  attachTouchTarget(canvas: HTMLCanvasElement): void {
+    const updateTouches = (event: TouchEvent) => {
+      event.preventDefault();
+      this.touchSteer = 0;
+      this.touchBrake = 0;
+
+      const rect = canvas.getBoundingClientRect();
+      for (const touch of Array.from(event.touches)) {
+        const x = (touch.clientX - rect.left) / rect.width;
+        const y = (touch.clientY - rect.top) / rect.height;
+        if (y > 0.58 && x < 0.34) this.touchSteer = -1;
+        if (y > 0.58 && x > 0.66) this.touchSteer = 1;
+        if (y > 0.58 && x >= 0.34 && x <= 0.66) this.touchBrake = 1;
+      }
+    };
+
+    const startTouches = (event: TouchEvent) => {
+      this.touchPressed = true;
+      updateTouches(event);
+    };
+
+    const clearTouches = () => {
+      this.touchSteer = 0;
+      this.touchBrake = 0;
+    };
+
+    canvas.addEventListener('touchstart', startTouches, { passive: false });
+    canvas.addEventListener('touchmove', updateTouches, { passive: false });
+    canvas.addEventListener('touchend', updateTouches, { passive: false });
+    canvas.addEventListener('touchcancel', clearTouches);
+  }
+
   /** True while the key is held down. */
   isHeld(code: string): boolean {
     return this.held.has(code);
@@ -33,6 +68,11 @@ export class InputHandler {
   /** True only on the first frame the key was pressed. */
   wasPressed(code: string): boolean {
     return this.justPressed.has(code);
+  }
+
+  /** True on the first frame any touch starts. */
+  get wasTouchPressed(): boolean {
+    return this.touchPressed;
   }
 
   /** Key codes pressed during the current frame. */
@@ -49,17 +89,18 @@ export class InputHandler {
   get steerAxis(): number {
     const left = this.isHeld('ArrowLeft') || this.isHeld('KeyA') ? -1 : 0;
     const right = this.isHeld('ArrowRight') || this.isHeld('KeyD') ? 1 : 0;
-    return left + right;
+    return left + right + this.touchSteer;
   }
 
   /** Brake input: 1 while braking, 0 otherwise. */
   get brakeAxis(): number {
-    return this.isHeld('ArrowDown') || this.isHeld('KeyS') ? 1 : 0;
+    return this.isHeld('ArrowDown') || this.isHeld('KeyS') || this.touchBrake > 0 ? 1 : 0;
   }
 
   /** Call once at the end of each frame to clear per-frame sets. */
   flush(): void {
     this.justPressed.clear();
     this.justReleased.clear();
+    this.touchPressed = false;
   }
 }

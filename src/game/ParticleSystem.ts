@@ -11,6 +11,8 @@ interface Particle {
   alpha: number;
 }
 
+const MAX_PARTICLES = 90;
+
 // ─── ParticleSystem ──────────────────────────────────────────────────────────
 
 /**
@@ -39,6 +41,7 @@ export class ParticleSystem {
     speed: number,
   ): void {
     const count = Math.random() < 0.55 ? 1 : 0;
+    if (count > 0 && this.particles.length >= MAX_PARTICLES) this.particles.shift();
     for (let i = 0; i < count; i++) {
       const spread  = 16 + Math.random() * 12;
       const lifetime = 0.42 + Math.random() * 0.28;
