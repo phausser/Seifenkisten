@@ -200,13 +200,6 @@ export class Track {
     this.polyline(ctx, lx, ly);
     this.polyline(ctx, rx, ry);
 
-    // ── Center dashes ─────────────────────────────────────────────────────────
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3;
-    ctx.setLineDash([26, 18]);
-    this.polyline(ctx, slice.map(s => sx(s.x)), slice.map(s => sy(s.y)));
-    ctx.setLineDash([]);
-
     // ── Hay bales ─────────────────────────────────────────────────────────────
     this.renderBales(ctx, camX, camY, W, H);
 
