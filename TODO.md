@@ -12,7 +12,7 @@
 - [x] Game Loop (requestAnimationFrame, fixed timestep 60 Hz, dt cap)
 - [x] Input Handling (`InputHandler`: held, wasPressed, wasReleased, steerAxis)
 - [x] State Machine: `menu | race | crash | finish | highscores`
-- [x] Menu Screen (Titel + Neon-Glow, Start-Hint)
+- [x] Menu Screen (Titel + Start-Hint)
 - [x] Race Placeholder (Gras, Straße, Platzhalter-Auto)
 - [x] FPS-Counter (Dev-Overlay)
 - [x] Responsive Canvas Scaling
@@ -31,7 +31,7 @@
 
 - [x] Track Generation System (Catmull-Rom Spline, immer bergab)
 - [x] Feste Straßenbreite (variable Breite → Phase 5 Polish)
-- [x] Rand-Markierungen (Heuballen, zufällig platziert)
+- [x] Rand-Heuballen: dicht am Rand, unregelmäßige Abstände, parallel zur Straßenkante mit ±5° Jitter
 - [x] Start- und Ziellinie (farbige Streifen + Label)
 - [x] `getEdgesAt(worldY)` für Kollisionserkennung (Phase 4)
 
@@ -42,19 +42,19 @@
 - [x] Kollisions-Response: lateralOffset bounce + 0.45s Freeze
 - [x] Screen-Flash (roter Overlay) + „−3s" Popup bei Crash
 - [x] Border-Kollision (Streckenrand, bereit für Phase 2 Physik)
-- [x] Schatten auf allen 3D-Objekten (Heuballen, Reifen, Auto), keine Outlines
+- [x] Weichgezeichnete dunkle Schatten auf Heuballen, Reifen und Auto, keine Outlines
 
-## Phase 5: Rendering & Effekte ✅
+## Phase 5: Rendering & Effekte
 
-- [x] Pseudo-3D Straßenperspektive (Trapez-Segmente)  — perspScale 0.65→1.35, alternating stripes + center dashes
-- [x] Objekt-Scaling nach Y-Position                  — alle Hindernisse + Heuballen perspScale'd
-- [x] Chronal-Partikeltrail hinter Auto               — ParticleSystem, cyan/blau, Glow
+- [x] Top-down Road Rendering                         — feste Breite, alternating stripes + center dashes, keine Randlinien
+- [x] Object-Scaling entfernt                         — Hindernisse/Heuballen bleiben feste Größe
+- [x] Staub-Partikel hinter Auto                      — sparsam, braun/tan, kein Glow
 - [x] Geschwindigkeitslinien (Speed Lines)            — radial ab 160 u/s
-- [x] Horizont mit Parallax                           — Sky-Gradient + 2 Hügelebenen (20 % / 45 % parallax)
+- [ ] Horizont mit Parallax                           — aktuell nicht umgesetzt
 
 ## Phase 6: Game Systems
 
-- [ ] Timer (großes Display oben links)
+- [x] Timer / Race Time Anzeige
 - [ ] Fortschrittsanzeige / Mini-Map (unten)
 - [ ] Renn-Zustände vollständig (Start-Countdown, Finish)
 - [ ] Highscore System mit LocalStorage (Top 10)
@@ -70,4 +70,4 @@
 
 ---
 
-**Aktueller Status:** Phase 2 + 5 abgeschlossen. Als nächstes: Phase 6 (Timer, Highscore).
+**Aktueller Status:** Phase 2, 3, 4 und wesentliche Phase-5-Polish-Schritte abgeschlossen. Als nächstes: Phase 6 (Highscore/UI-Flows).

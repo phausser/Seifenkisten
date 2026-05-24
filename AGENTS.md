@@ -18,11 +18,10 @@ src/
   main.ts              # entry — mounts Game on #game-canvas
   game/
     Game.ts            # game loop, state machine, camera, render dispatch
-    Car.ts             # car entity: position, angle, render; Phase 2 adds physics
+    Car.ts             # car entity: custom gravity/steering/friction physics + render
     Track.ts           # procedural Catmull-Rom track; samples[], bales[], queries
     Obstacle.ts        # dynamic obstacles: tires (Phase 4)
-    Physics.ts         # collision, impulse response (Phase 4)
-    ParticleSystem.ts  # dust, sparks, time trails (Phase 5)
+    ParticleSystem.ts  # subtle dust trail behind car
   ui/                  # menu, HUD, highscores (Phase 6–7)
   utils/
     InputHandler.ts    # keyboard state (held / wasPressed / steerAxis)
@@ -55,19 +54,24 @@ vite.config.ts
 - CSS scales to fit viewport with `Math.min(scaleX, scaleY)`
 - Resize listener on `window`
 
-## Physics Rules (Phase 2 target)
+## Physics Rules
 - Gravity → forward (downward-Y) acceleration
 - Steering: angular velocity, speed-dependent sensitivity
 - Friction: road < grass/off-track
 - Collision response: separate + impulse push toward center + 3s time penalty
 
-## Pseudo-3D (Phase 5 target)
-- Road as perspective trapezoids
-- Object scale: `scale = 1 + (y / maxY) * factor`
-- Horizon line with parallax
+## Rendering Rules
+- Top-down rendering only; no pseudo-3D road-width scaling and no object scaling by screen/world Y.
+- Road is a fixed-width Catmull-Rom ribbon with alternating flat grey segments and dashed center line.
+- No road-edge stripe/outline lines.
+- Hay bales are square with slightly rounded corners, hay-colored fill, short lighter straw strokes, lighter binding lines, and soft blurred offset shadows.
+- Side hay bales sit close to the road edge, have irregular spacing, rotate parallel to the road edge, and receive ±5° per-bale jitter.
+- Road hay bales are randomly rotated.
+- Car is slim red soapbox shape with rounded front/back, red axles, black tires, and rear circular highlight.
+- Dust particles are sparse, brown/tan, non-glowing.
 
 ## Current Status
-**Phase 4 complete** (Phase 2 physics deliberately deferred — car currently auto-follows centerline).
+**Phase 5 visual polish in progress.** Phase 2 custom physics and Phase 4 collisions are implemented.
 
 Running features:
 - `npm run dev` → Vite dev server
@@ -76,13 +80,14 @@ Running features:
 - ~30 obstacles on road (hay bales + tires), seeded placement
 - Collision detection: circle-circle (CAR_RADIUS=18); border check via lateralOffset
 - Crash response: bounce lateralOffset, 0.45 s freeze, red flash, "−3s" popup
-- All 3D objects have soft blurred offset shadows; no outlines
+- All cast shadows are dark, soft blurred offset shapes using `ctx.filter = blur(...)`; no outlines
+- Sparse dust trail behind the car and speed lines at high velocity
 
-Next: **Phase 2** — replace `Car.update()` with gravity + steering + friction. `lateralOffset` and `frozen` hooks are already in place.
+Next: **Phase 6** — complete timer/highscore systems and remaining UI flow.
 
 ## Visual Style
 - **Aesthetic:** Minimalist, flat comic — hard outlines, no gradients
-- **Shadows:** all cast shadows are soft/blurred offset shadows using Canvas shadow settings; keep them subtle and natural, not neon/glow effects
+- **Shadows:** all cast shadows are soft blurred offset shapes using `ctx.filter = blur(...)`; keep them natural, not neon/glow effects
 - **Font:** `"Open Sans", sans-serif` — loaded via Google Fonts
   - Weights used: 400 (body), 700 (labels), 800 (title)
 - **Text color rule:** white (`#ffffff`) on dark backgrounds, black (`#111111`) on light
@@ -90,7 +95,7 @@ Next: **Phase 2** — replace `Car.update()` with gravity + steering + friction.
   - Page/canvas bg: `#f5f2eb` (warm off-white)
   - Grass: `#2fb51d` (saturated grass green)
   - Road: `#b0aead` (mid gray)
-  - Road borders / outlines: `#111111`
+  - Road: no border/edge lines
   - Car body: `#e63030` (flat red)
   - Subtitle / muted text: `#555550`
 

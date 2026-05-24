@@ -1,4 +1,4 @@
-# Seifenkisten Rennen: Time Drift 🏎️⏱️
+# Seifenkisten Rennen: Time Drift
 
 Ein 2D Top-Down Seifenkisten-Rennspiel mit Zeit-Reise-Thema — gebaut mit HTML5 Canvas und TypeScript.
 
@@ -34,11 +34,10 @@ src/
   main.ts              # Einstiegspunkt
   game/
     Game.ts            # Game Loop + State Machine
-    Car.ts             # Fahrzeugphysik (Phase 2)
-    Track.ts           # Prozedurale Strecke (Phase 3)
+    Car.ts             # Fahrzeugphysik + Fahrzeug-Rendering
+    Track.ts           # Prozedurale Strecke + Rand-Heuballen
     Obstacle.ts        # Hindernisse (Phase 4)
-    Physics.ts         # Kollisionen (Phase 4)
-    ParticleSystem.ts  # Partikeleffekte (Phase 5)
+    ParticleSystem.ts  # Staubpartikel
   ui/                  # Menü, HUD, Highscores (Phase 6–7)
   utils/
     InputHandler.ts    # Keyboard State
@@ -50,12 +49,22 @@ src/
 |-------|--------|--------|
 | 0 – Setup | ✅ | Projektdateien, Specs |
 | 1 – Grundgerüst | ✅ | Vite, Canvas, Game Loop, Input, State Machine |
-| 2 – Physik | 🔲 | Car, Gravity, Lenkung, Trägheit |
+| 2 – Physik | ✅ | Car, Gravity, Lenkung, Trägheit |
 | 3 – Strecke | ✅ | Catmull-Rom Spline, Heuballen, Start/Ziel, Kamera |
 | 4 – Kollisionen | ✅ | Hindernisse, Kollision, Flash, Zeitstrafe, Schatten |
-| 5 – Rendering | 🔲 | Pseudo-3D, Partikel |
-| 6 – Game Systems | 🔲 | Timer, Highscores |
+| 5 – Rendering | ✅ | Top-down Road, Heuballen-Polish, Staub, Speed Lines |
+| 6 – Game Systems | 🔲 | Highscores, UI-Flows |
 | 7 – Polish | 🔲 | Sound, UI, Mobile |
+
+## Aktueller Look
+
+- Sattes Rasengruen (`#2fb51d`)
+- Feste Top-down-Strasse ohne Randlinien und ohne Object-Scaling
+- Quadratische Heuballen mit abgerundeten Ecken, Heumuster und unregelmaessiger Rotation
+- Rand-Heuballen stehen dicht am Fahrbahnrand und folgen der Strassenkante
+- Dunkle, weichgezeichnete Schatten per Canvas-Filter
+- Schlanke rote Seifenkiste mit roten Achsen und schwarzen Reifen
+- Sparsame staubfarbene Partikel hinter dem Auto
 
 ## Tech Stack
 - **TypeScript** (strict mode)

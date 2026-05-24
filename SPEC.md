@@ -3,18 +3,18 @@
 ## 1. Project Overview
 
 **Game Title:** Seifenkisten Rennen: Time Drift  
-**Genre:** 2D Top-Down Racing with Pseudo-3D Effects  
+**Genre:** 2D Top-Down Racing  
 **Theme:** Time Travel Soapbox Derby  
 **Platform:** Web (HTML5 + TypeScript)  
 **Duration:** Single race ~25-35 seconds  
 **Core Loop:** Steer your soapbox car down a procedurally generated downhill track, avoid obstacles, reach the finish line as fast as possible. Collisions cost time.
 
-**Visual Style:** Minimalist, clean vector-like graphics with retro-futuristic time travel accents (neon glows, subtle particle trails, scanline effects optional).
+**Visual Style:** Minimalist flat comic/vector graphics with saturated grass, fixed-width road, soft blurred shadows, sparse dust, and no neon glow effects in gameplay.
 
 ## 2. Technical Stack
 
 - **Languages:** HTML5, TypeScript
-- **Rendering:** HTML5 Canvas (2D context with pseudo-3D tricks)
+- **Rendering:** HTML5 Canvas (2D top-down context)
 - **Physics:** Custom simple rigid body physics (no external engine)
 - **Dependencies:** Minimal - only `vite` for build/dev if desired (optional). Pure vanilla TS otherwise.
 - **Architecture:** 
@@ -40,18 +40,18 @@
 ### Track
 - **Generation:** Procedurally generated curvy path, always downhill.
   - Length: Designed for ~28-35 seconds optimal run.
-  - Width: Varies slightly (wider in straights, narrower in curves).
+  - Width: Fixed in world units.
   - Curvature: Smooth bezier or spline-based path with noise.
   - Background: Simple grass + road texture (procedural stripes).
   - Sides: Dense hay bales as barriers.
-- **Perspective:** Top-down with pseudo-3D:
-  - Road edges drawn with perspective scaling.
-  - Objects scale slightly based on "depth" (Y position in world).
-  - Horizon line with subtle parallax.
-  - Speed lines and motion blur effect on high velocity.
+- **Rendering:** Top-down:
+  - No road-width perspective scaling.
+  - No object scaling by Y/depth.
+  - Alternating road segments and dashed center line.
+  - Speed lines at high velocity.
 
 ### Obstacles
-- **Hay Bales (Strohballen)**: Round/rectangular, static, scattered on track and sides.
+- **Hay Bales (Strohballen)**: Square with slightly rounded corners, hay-colored fill, short lighter straw strokes, lighter binding lines, and soft blurred shadows. Side bales sit close to the road edge, follow the road angle with ±5° jitter, and use irregular spacing. Road bales are randomly rotated.
 - **Tires (Autoreifen)**: Circular, some static, maybe slow rolling ones.
 - **Other:** Occasional rocks or time-rift visual markers.
 - Collision with any obstacle:
@@ -67,7 +67,7 @@
   - Shows: Time, Date, Name (prompt for initials on new high score).
 
 ### Time Travel Theme
-- Visuals: Subtle chronal energy trails behind car.
+- Visuals: Subtle dust trail behind car.
 - On collision: Brief "time ripple" effect + screen desaturation.
 - Background music: Retro synth with ticking clock elements (or placeholder).
 - Finish: "Temporal checkpoint reached" message.
@@ -101,17 +101,17 @@
 
 **All assets procedural/vector where possible:**
 
-- **Car:** Polygon body + 4 wheels (rotating).
-- **Road:** Bezier path with dashed center line, perspective trapezoids.
-- **Hay Bale:** Yellow/brown circles + lines.
+- **Car:** Slim red rounded soapbox body, red axles, black tires, rear circular highlight.
+- **Road:** Catmull-Rom path with fixed width, alternating grey segments, dashed center line, no edge lines.
+- **Hay Bale:** Square hay-colored bales with short lighter straw strokes.
 - **Tire:** Black circle with inner details.
-- **Particles:** Dust, sparks, time energy (simple dots/lines).
-- **UI:** Clean sans-serif with neon accents.
+- **Particles:** Sparse dust dots behind the car.
+- **UI:** Clean sans-serif with flat, high-contrast accents.
 
-**Pseudo-3D Techniques:**
-- Road rendered as series of trapezoids with increasing width toward bottom.
-- Objects positioned with `scale = 1 + (y / maxY) * factor`.
-- Soft blurred offset shadows for all cast shadows.
+**Visual Rules:**
+- Top-down fixed-scale rendering; do not scale road width or objects by Y/depth.
+- Soft blurred offset shadows for all cast shadows, implemented by blurring the shadow shape itself.
+- No neon/glow effects for shadows or particles.
 
 ## 6. Physics Implementation
 
@@ -153,7 +153,6 @@ seifenkisten-rennen/
 │   │   ├── Track.ts
 │   │   ├── Car.ts
 │   │   ├── Obstacle.ts
-│   │   ├── Physics.ts
 │   │   └── ParticleSystem.ts
 │   ├── utils/
 │   ├── ui/
