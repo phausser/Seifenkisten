@@ -6,6 +6,7 @@ export class InputHandler {
   private held = new Set<string>();
   private justPressed = new Set<string>();
   private justReleased = new Set<string>();
+  private typed = '';
   private touchSteer = 0;
   private touchBrake = 0;
   private touchPressed = false;
@@ -14,6 +15,9 @@ export class InputHandler {
     window.addEventListener('keydown', (e) => {
       if (!this.held.has(e.code)) {
         this.justPressed.add(e.code);
+      }
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1 && /^[a-z0-9]$/i.test(e.key)) {
+        this.typed += e.key.toUpperCase();
       }
       this.held.add(e.code);
       // Prevent arrow keys from scrolling
@@ -80,6 +84,11 @@ export class InputHandler {
     return [...this.justPressed];
   }
 
+  /** Text typed during the current frame, already uppercased. */
+  get typedChars(): string {
+    return this.typed;
+  }
+
   /** True only on the first frame the key was released. */
   wasReleased(code: string): boolean {
     return this.justReleased.has(code);
@@ -101,6 +110,7 @@ export class InputHandler {
   flush(): void {
     this.justPressed.clear();
     this.justReleased.clear();
+    this.typed = '';
     this.touchPressed = false;
   }
 }

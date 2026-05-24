@@ -85,7 +85,7 @@ Running features:
 - Crash response: bounce lateralOffset, 0.45 s freeze, red flash, "+3s" popup and time penalty
 - All cast shadows are dark, soft blurred offset shapes using `ctx.filter = blur(...)`; no outlines
 - Sparse dust trail behind the car and speed lines at high velocity
-- Start countdown, race timer, bottom progress bar, finish time panel, LocalStorage top-10 highscores, and 3-letter name entry
+- Start countdown, race timer, bottom progress bar, finish time panel, LocalStorage top-5 highscores, and 3-letter name entry for places 1–5
 - Web Audio effects for start/countdown/crash/finish/save, crash ripple, canvas touch controls, particle cap, deterministic speed lines
 
 Next: new feature work or tuning.

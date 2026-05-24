@@ -14,7 +14,7 @@ const FIXED_DT = 1 / 60;  // 60 Hz physics tick
 const CAM_AHEAD = 180;      // world units camera looks ahead of car
 const PENALTY_SECONDS = 3;
 const HIGHSCORE_KEY = 'seifenkisten.highscores.v1';
-const MAX_HIGHSCORES = 10;
+const MAX_HIGHSCORES = 5;
 const RIPPLE_DURATION = 0.48;
 
 interface HighScoreEntry {
@@ -326,10 +326,12 @@ export class Game {
       }
       if (code === 'Enter') {
         this.commitPendingHighScore();
-        continue;
       }
-      if (this.pendingName.length >= 3) continue;
-      if (code.startsWith('Key')) this.pendingName += code.slice(3, 4);
+    }
+
+    for (const char of this.input.typedChars) {
+      if (this.pendingName.length >= 3) break;
+      this.pendingName += char;
     }
   }
 
@@ -664,11 +666,10 @@ export class Game {
       ctx.font = '700 18px "Open Sans", sans-serif';
       ctx.fillStyle = '#111111';
       ctx.fillText(`Neue Bestzeit #${this.pendingHighScoreRank + 1}`, cx, cy + 72);
-      ctx.font = '800 30px "Open Sans", sans-serif';
-      ctx.fillText((this.pendingName || '___').padEnd(3, '_'), cx, cy + 108);
+      this.renderNameEntry(cx, cy + 106);
       ctx.font = '400 15px "Open Sans", sans-serif';
       ctx.fillStyle = '#555550';
-      ctx.fillText('Initialen tippen · ENTER speichern · BACKSPACE löschen', cx, cy + 136);
+      ctx.fillText('3 Zeichen · ENTER speichern · BACKSPACE löschen', cx, cy + 146);
       ctx.restore();
       return;
     }
@@ -689,6 +690,48 @@ export class Game {
     ctx.restore();
   }
 
+  private renderNameEntry(cx: number, y: number): void {
+    const { ctx } = this;
+    const boxW = 48;
+    const boxH = 54;
+    const gap = 10;
+    const totalW = boxW * 3 + gap * 2;
+    const startX = cx - totalW * 0.5;
+    const activeIndex = Math.min(this.pendingName.length, 2);
+    const showCursor = Math.floor(performance.now() / 420) % 2 === 0;
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = '800 32px "Open Sans", sans-serif';
+
+    for (let i = 0; i < 3; i++) {
+      const x = startX + i * (boxW + gap);
+      const char = this.pendingName[i] ?? '';
+      const isActive = i === activeIndex && this.pendingName.length < 3;
+
+      ctx.fillStyle = isActive ? '#ffffff' : '#ece8dc';
+      ctx.beginPath();
+      ctx.roundRect(x, y - boxH * 0.5, boxW, boxH, 6);
+      ctx.fill();
+      ctx.strokeStyle = isActive ? '#111111' : '#c9c2b4';
+      ctx.lineWidth = isActive ? 3 : 2;
+      ctx.stroke();
+
+      if (char) {
+        ctx.fillStyle = '#111111';
+        ctx.fillText(char, x + boxW * 0.5, y + 12);
+      } else if (isActive && showCursor) {
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(x + boxW * 0.5 - 2, y - 18, 4, 34);
+      } else {
+        ctx.fillStyle = '#b7afa0';
+        ctx.fillText('_', x + boxW * 0.5, y + 12);
+      }
+    }
+
+    ctx.restore();
+  }
+
   private renderHighScores(): void {
     const { ctx, canvas } = this;
     const W = canvas.width, H = canvas.height;
@@ -703,7 +746,7 @@ export class Game {
 
     ctx.font = '700 18px "Open Sans", sans-serif';
     ctx.fillStyle = '#555550';
-    ctx.fillText('Top 10', cx, top + 34);
+    ctx.fillText('Top 5', cx, top + 34);
 
     if (this.highScores.length === 0) {
       ctx.font = '400 22px "Open Sans", sans-serif';

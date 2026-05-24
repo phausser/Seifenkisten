@@ -65,7 +65,7 @@
 - **Start Line:** Clear starting position with countdown.
 - **Finish Line:** Banner + confetti/time travel particles.
 - **Time Attack:** Primary goal is lowest total time.
-- **High Scores:** LocalStorage-based leaderboard (top 10).
+- **High Scores:** LocalStorage-based leaderboard (top 5).
   - Shows: Time, Date, Name (prompt for initials on new high score).
 
 ### Time Travel Theme
@@ -98,7 +98,7 @@
    - "Race Again"
 
 5. **High Scores Screen**
-   - LocalStorage-backed top 10 list
+   - LocalStorage-backed top 5 list
    - 3-letter initials entry on new high score
 
 ## 5. Graphics & Assets

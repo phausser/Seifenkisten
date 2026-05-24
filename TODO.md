@@ -59,7 +59,7 @@
 - [x] Timer / Race Time Anzeige
 - [x] Fortschrittsanzeige unten
 - [x] Renn-Zustände vollständig (Start-Countdown, Finish)
-- [x] Highscore System mit LocalStorage (Top 10)
+- [x] Highscore System mit LocalStorage (Top 5)
 - [x] Name-Eingabe bei neuem Highscore
 
 ## Phase 7: Polish ✅
