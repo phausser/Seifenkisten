@@ -39,7 +39,7 @@ vite.config.ts
 - Call order per frame: `update(FIXED_DT)* → render() → input.flush()`
 
 ### State Machine
-`menu → race → crash → finish → highscores`
+`menu → countdown → race → crash → finish → highscores`
 - Transitions via `setState(next: GameState)`
 - Each state has dedicated `update*()` and `render*()` methods
 
@@ -71,19 +71,20 @@ vite.config.ts
 - Dust particles are sparse, brown/tan, non-glowing.
 
 ## Current Status
-**Phase 5 visual polish in progress.** Phase 2 custom physics and Phase 4 collisions are implemented.
+**Phase 2–6 complete.** Phase 7 polish remains.
 
 Running features:
 - `npm run dev` → Vite dev server
-- Menu → Race → Finish state machine
+- Menu → Countdown → Race → Finish → Highscores state machine
 - Procedural track: Catmull-Rom, 15 segments, ~8400 world units (~30 s)
 - ~30 obstacles on road (hay bales + tires), seeded placement
 - Collision detection: circle-circle (CAR_RADIUS=18); border check via lateralOffset
-- Crash response: bounce lateralOffset, 0.45 s freeze, red flash, "−3s" popup
+- Crash response: bounce lateralOffset, 0.45 s freeze, red flash, "+3s" popup and time penalty
 - All cast shadows are dark, soft blurred offset shapes using `ctx.filter = blur(...)`; no outlines
 - Sparse dust trail behind the car and speed lines at high velocity
+- Start countdown, race timer, bottom progress bar, finish time panel, LocalStorage top-10 highscores, and 3-letter name entry
 
-Next: **Phase 6** — complete timer/highscore systems and remaining UI flow.
+Next: **Phase 7** — polish sound, optional mobile controls, and remaining effects.
 
 ## Visual Style
 - **Aesthetic:** Minimalist, flat comic — hard outlines, no gradients

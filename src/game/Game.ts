@@ -5,12 +5,21 @@ import { placeObstacles, renderObstacle } from './Obstacle';
 import { ParticleSystem } from './ParticleSystem';
 import type { Obstacle } from './Obstacle';
 
-export type GameState = 'menu' | 'race' | 'crash' | 'finish' | 'highscores';
+export type GameState = 'menu' | 'countdown' | 'race' | 'crash' | 'finish' | 'highscores';
 
 const TARGET_W = 1280;
 const TARGET_H = 720;
 const FIXED_DT = 1 / 60;  // 60 Hz physics tick
 const CAM_AHEAD = 180;      // world units camera looks ahead of car
+const PENALTY_SECONDS = 3;
+const HIGHSCORE_KEY = 'seifenkisten.highscores.v1';
+const MAX_HIGHSCORES = 10;
+
+interface HighScoreEntry {
+  name: string;
+  time: number;
+  date: string;
+}
 
 /**
  * Core game loop and state machine.
@@ -36,7 +45,15 @@ export class Game {
 
   // Crash feedback
   private crashFlash = 0;  // 0–1, fades after collision
-  private crashPopup = 0;  // seconds remaining for "−3s" label
+  private crashPopup = 0;  // seconds remaining for "+3s" label
+
+  // Race systems
+  private raceTime = 0;
+  private finishTime = 0;
+  private countdownTime = 3;
+  private highScores: HighScoreEntry[] = [];
+  private pendingHighScoreRank: number | null = null;
+  private pendingName = '';
 
   // Frame timing
   private lastTimestamp = 0;
@@ -53,6 +70,7 @@ export class Game {
     if (!ctx) throw new Error('Could not get 2D context');
     this.ctx = ctx;
     this.input = new InputHandler();
+    this.highScores = this.loadHighScores();
 
     this.initRace();   // pre-generate track so it's ready on first start
     this.resize();
@@ -69,6 +87,11 @@ export class Game {
     this.particles.clear();
     this.crashFlash = 0;
     this.crashPopup = 0;
+    this.raceTime = 0;
+    this.finishTime = 0;
+    this.countdownTime = 3;
+    this.pendingHighScoreRank = null;
+    this.pendingName = '';
     const s = this.track.getSampleAtDist(0);
     this.camX = s.x;
     this.camY = s.y + CAM_AHEAD;
@@ -121,14 +144,30 @@ export class Game {
   private update(dt: number): void {
     switch (this.state) {
       case 'menu': this.updateMenu(dt); break;
+      case 'countdown': this.updateCountdown(dt); break;
       case 'race': this.updateRace(dt); break;
       case 'finish': this.updateFinish(dt); break;
+      case 'highscores': this.updateHighScores(dt); break;
     }
   }
 
   private updateMenu(_dt: number): void {
     if (this.input.wasPressed('Space') || this.input.wasPressed('Enter')) {
       this.initRace();
+      this.setState('countdown');
+    }
+    if (this.input.wasPressed('KeyH')) {
+      this.setState('highscores');
+    }
+  }
+
+  private updateCountdown(dt: number): void {
+    if (this.input.wasPressed('Escape')) {
+      this.setState('menu');
+      return;
+    }
+    this.countdownTime -= dt;
+    if (this.countdownTime <= 0) {
       this.setState('race');
     }
   }
@@ -139,11 +178,13 @@ export class Game {
       return;
     }
 
+    this.raceTime += dt;
     this.car.update(dt, this.input.steerAxis, this.track);
 
     // Clamp car at finish
     if (this.car.dist >= this.track.finishDist) {
       this.car.dist = this.track.finishDist;
+      this.finishRace();
       this.setState('finish');
       return;
     }
@@ -188,22 +229,117 @@ export class Game {
 
   private triggerCrash(): void {
     this.car.onCollision(this.track);
+    this.raceTime += PENALTY_SECONDS;
     this.crashFlash = 1.0;
     this.crashPopup = 0.9;
   }
 
   private updateFinish(_dt: number): void {
+    if (this.pendingHighScoreRank !== null) {
+      this.updateNameEntry();
+      return;
+    }
     if (this.input.wasPressed('Space') || this.input.wasPressed('Enter')) {
       this.initRace();
-      this.setState('race');
+      this.setState('countdown');
     }
     if (this.input.wasPressed('Escape')) {
+      this.setState('menu');
+    }
+    if (this.input.wasPressed('KeyH')) {
+      this.setState('highscores');
+    }
+  }
+
+  private updateHighScores(_dt: number): void {
+    if (
+      this.input.wasPressed('Escape') ||
+      this.input.wasPressed('Space') ||
+      this.input.wasPressed('Enter')
+    ) {
       this.setState('menu');
     }
   }
 
   private setState(next: GameState): void {
     this.state = next;
+  }
+
+  private finishRace(): void {
+    this.finishTime = this.raceTime;
+    const rank = this.getHighScoreRank(this.finishTime);
+    if (rank !== null) {
+      this.pendingHighScoreRank = rank;
+      this.pendingName = '';
+    }
+  }
+
+  private updateNameEntry(): void {
+    for (const code of this.input.pressedCodes) {
+      if (code === 'Backspace') {
+        this.pendingName = this.pendingName.slice(0, -1);
+        continue;
+      }
+      if (code === 'Enter') {
+        this.commitPendingHighScore();
+        continue;
+      }
+      if (this.pendingName.length >= 3) continue;
+      if (code.startsWith('Key')) this.pendingName += code.slice(3, 4);
+    }
+  }
+
+  private commitPendingHighScore(): void {
+    if (this.pendingHighScoreRank === null) return;
+    const name = (this.pendingName || '---').slice(0, 3).toUpperCase();
+    this.highScores.push({
+      name,
+      time: this.finishTime,
+      date: new Date().toISOString(),
+    });
+    this.highScores.sort((a, b) => a.time - b.time);
+    this.highScores = this.highScores.slice(0, MAX_HIGHSCORES);
+    this.saveHighScores();
+    this.pendingHighScoreRank = null;
+  }
+
+  private getHighScoreRank(time: number): number | null {
+    const rank = this.highScores.findIndex((score) => time < score.time);
+    if (rank >= 0) return rank;
+    return this.highScores.length < MAX_HIGHSCORES ? this.highScores.length : null;
+  }
+
+  private loadHighScores(): HighScoreEntry[] {
+    try {
+      const raw = localStorage.getItem(HIGHSCORE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as HighScoreEntry[];
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter((entry) => (
+          typeof entry.name === 'string' &&
+          typeof entry.time === 'number' &&
+          typeof entry.date === 'string'
+        ))
+        .sort((a, b) => a.time - b.time)
+        .slice(0, MAX_HIGHSCORES);
+    } catch {
+      return [];
+    }
+  }
+
+  private saveHighScores(): void {
+    try {
+      localStorage.setItem(HIGHSCORE_KEY, JSON.stringify(this.highScores));
+    } catch {
+      // Ignore private-mode/quota failures; gameplay should continue.
+    }
+  }
+
+  private formatTime(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const rest = seconds - minutes * 60;
+    return `${minutes}:${rest.toFixed(2).padStart(5, '0')}`;
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -217,8 +353,10 @@ export class Game {
 
     switch (this.state) {
       case 'menu': this.renderMenu(); break;
+      case 'countdown': this.renderCountdown(); break;
       case 'race': this.renderRace(); break;
       case 'finish': this.renderFinish(); break;
+      case 'highscores': this.renderHighScores(); break;
     }
 
     this.renderHUD();
@@ -261,11 +399,34 @@ export class Game {
     ctx.font = '400 16px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
     ctx.fillText('Steuerung: ← → oder A D', cx, cy + 118);
+    ctx.fillText('H — Bestzeiten', cx, cy + 144);
 
     ctx.restore();
   }
 
   // ── Race ───────────────────────────────────────────────────────────────────
+
+  private renderCountdown(): void {
+    this.renderRace();
+
+    const { ctx, canvas } = this;
+    const W = canvas.width, H = canvas.height;
+    const label = this.countdownTime > 1
+      ? String(Math.ceil(this.countdownTime))
+      : 'LOS';
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(245,242,235,0.55)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center';
+    ctx.font = '800 110px "Open Sans", sans-serif';
+    ctx.fillStyle = '#111111';
+    ctx.fillText(label, W * 0.5, H * 0.46);
+    ctx.font = '700 22px "Open Sans", sans-serif';
+    ctx.fillStyle = '#555550';
+    ctx.fillText('Bereit machen', W * 0.5, H * 0.46 + 46);
+    ctx.restore();
+  }
 
   private renderRace(): void {
     const { ctx, canvas } = this;
@@ -303,14 +464,14 @@ export class Game {
       ctx.fillRect(0, 0, W, H);
     }
 
-    // ── "−3s" popup ───────────────────────────────────────────────────────────
+    // ── "+3s" popup ───────────────────────────────────────────────────────────
     if (this.crashPopup > 0) {
       const alpha = Math.min(1, this.crashPopup * 5);
       ctx.save();
       ctx.textAlign = 'center';
       ctx.font = '800 52px "Open Sans", sans-serif';
       ctx.fillStyle = `rgba(200,20,20,${alpha.toFixed(3)})`;
-      ctx.fillText('−3s', W * 0.5, H * 0.33);
+      ctx.fillText('+3s', W * 0.5, H * 0.33);
       ctx.restore();
     }
 
@@ -392,19 +553,84 @@ export class Game {
     ctx.fillStyle = '#111111';
     ctx.fillText('ZIEL ERREICHT!', cx, cy - 34);
 
+    ctx.font = '800 32px "Open Sans", sans-serif';
+    ctx.fillStyle = '#111111';
+    ctx.fillText(this.formatTime(this.finishTime), cx, cy + 8);
+
     ctx.font = '400 18px "Open Sans", sans-serif';
     ctx.fillStyle = '#555550';
-    ctx.fillText('Temporaler Checkpoint erreicht.', cx, cy + 10);
+    ctx.fillText('Temporaler Checkpoint erreicht.', cx, cy + 38);
+
+    if (this.pendingHighScoreRank !== null) {
+      ctx.font = '700 18px "Open Sans", sans-serif';
+      ctx.fillStyle = '#111111';
+      ctx.fillText(`Neue Bestzeit #${this.pendingHighScoreRank + 1}`, cx, cy + 72);
+      ctx.font = '800 30px "Open Sans", sans-serif';
+      ctx.fillText((this.pendingName || '___').padEnd(3, '_'), cx, cy + 108);
+      ctx.font = '400 15px "Open Sans", sans-serif';
+      ctx.fillStyle = '#555550';
+      ctx.fillText('Initialen tippen · ENTER speichern · BACKSPACE löschen', cx, cy + 136);
+      ctx.restore();
+      return;
+    }
 
     const btnW = 300, btnH = 48;
     ctx.fillStyle = '#111111';
     ctx.beginPath();
-    ctx.roundRect(cx - btnW / 2, cy + 34, btnW, btnH, 6);
+    ctx.roundRect(cx - btnW / 2, cy + 58, btnW, btnH, 6);
     ctx.fill();
     ctx.font = '700 20px "Open Sans", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('SPACE — Nochmal', cx, cy + 64);
+    ctx.fillText('SPACE — Nochmal', cx, cy + 88);
 
+    ctx.font = '400 15px "Open Sans", sans-serif';
+    ctx.fillStyle = '#555550';
+    ctx.fillText('H — Bestzeiten · ESC — Menü', cx, cy + 126);
+
+    ctx.restore();
+  }
+
+  private renderHighScores(): void {
+    const { ctx, canvas } = this;
+    const W = canvas.width, H = canvas.height;
+    const cx = W * 0.5;
+    const top = 120;
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = '800 56px "Open Sans", sans-serif';
+    ctx.fillStyle = '#111111';
+    ctx.fillText('BESTZEITEN', cx, top);
+
+    ctx.font = '700 18px "Open Sans", sans-serif';
+    ctx.fillStyle = '#555550';
+    ctx.fillText('Top 10', cx, top + 34);
+
+    if (this.highScores.length === 0) {
+      ctx.font = '400 22px "Open Sans", sans-serif';
+      ctx.fillStyle = '#555550';
+      ctx.fillText('Noch keine Zeiten gespeichert.', cx, top + 150);
+    } else {
+      ctx.textAlign = 'left';
+      ctx.font = '700 22px "Open Sans", sans-serif';
+      for (let i = 0; i < this.highScores.length; i++) {
+        const score = this.highScores[i];
+        const y = top + 92 + i * 38;
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(17,17,17,0.06)' : 'rgba(17,17,17,0.025)';
+        ctx.fillRect(cx - 230, y - 25, 460, 32);
+        ctx.fillStyle = '#111111';
+        ctx.fillText(`${String(i + 1).padStart(2, '0')}.`, cx - 210, y);
+        ctx.fillText(score.name, cx - 150, y);
+        ctx.textAlign = 'right';
+        ctx.fillText(this.formatTime(score.time), cx + 210, y);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    ctx.textAlign = 'center';
+    ctx.font = '400 16px "Open Sans", sans-serif';
+    ctx.fillStyle = '#555550';
+    ctx.fillText('SPACE · ENTER · ESC — Menü', cx, H - 58);
     ctx.restore();
   }
 
@@ -418,13 +644,45 @@ export class Game {
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.fillText(`${this.fps} fps`, 10, 20);
 
-    if (this.state === 'race') {
+    if (this.state === 'race' || this.state === 'countdown') {
       const kmh = Math.round(this.car.speed * 0.18); // u/s → rough km/h
       ctx.font = '700 16px "Open Sans", sans-serif';
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.fillText(`${kmh} km/h`, 10, 42);
+
+      ctx.font = '800 32px "Open Sans", sans-serif';
+      ctx.fillStyle = '#111111';
+      ctx.fillText(this.formatTime(this.raceTime), 10, 78);
+      this.renderProgressBar();
     }
 
+    ctx.restore();
+  }
+
+  private renderProgressBar(): void {
+    const { ctx, canvas } = this;
+    const W = canvas.width;
+    const x = W * 0.5 - 210;
+    const y = canvas.height - 34;
+    const w = 420;
+    const h = 10;
+    const progress = Math.max(0, Math.min(1, this.car.dist / this.track.finishDist));
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(17,17,17,0.22)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 5);
+    ctx.fill();
+    if (progress > 0) {
+      ctx.fillStyle = '#111111';
+      ctx.beginPath();
+      ctx.roundRect(x, y, w * progress, h, 5);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#e63030';
+    ctx.beginPath();
+    ctx.arc(x + w * progress, y + h * 0.5, 8, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 }

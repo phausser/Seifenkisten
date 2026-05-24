@@ -14,7 +14,7 @@ export class InputHandler {
       }
       this.held.add(e.code);
       // Prevent arrow keys from scrolling
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Backspace'].includes(e.code)) {
         e.preventDefault();
       }
     });
@@ -33,6 +33,11 @@ export class InputHandler {
   /** True only on the first frame the key was pressed. */
   wasPressed(code: string): boolean {
     return this.justPressed.has(code);
+  }
+
+  /** Key codes pressed during the current frame. */
+  get pressedCodes(): readonly string[] {
+    return [...this.justPressed];
   }
 
   /** True only on the first frame the key was released. */

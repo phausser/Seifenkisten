@@ -53,7 +53,7 @@ src/
 | 3 – Strecke | ✅ | Catmull-Rom Spline, Heuballen, Start/Ziel, Kamera |
 | 4 – Kollisionen | ✅ | Hindernisse, Kollision, Flash, Zeitstrafe, Schatten |
 | 5 – Rendering | ✅ | Top-down Road, Heuballen-Polish, Staub, Speed Lines |
-| 6 – Game Systems | 🔲 | Highscores, UI-Flows |
+| 6 – Game Systems | ✅ | Timer, Progress, Countdown, Highscores |
 | 7 – Polish | 🔲 | Sound, UI, Mobile |
 
 ## Aktueller Look
@@ -65,6 +65,7 @@ src/
 - Dunkle, weichgezeichnete Schatten per Canvas-Filter
 - Schlanke rote Seifenkiste mit roten Achsen und schwarzen Reifen
 - Sparsame staubfarbene Partikel hinter dem Auto
+- Start-Countdown, Race-Timer, Fortschrittsleiste und LocalStorage-Bestzeiten
 
 ## Tech Stack
 - **TypeScript** (strict mode)

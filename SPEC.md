@@ -20,7 +20,7 @@
 - **Architecture:** 
   - Entity-Component-System inspired (optional simple classes)
   - Game loop with requestAnimationFrame
-  - State machine (Menu, Race, Crash, Finish, Highscores)
+  - State machine (Menu, Countdown, Race, Crash, Finish, Highscores)
 
 ## 3. Game Mechanics
 
@@ -83,7 +83,7 @@
 2. **Race**
    - Active gameplay
    - Timer (large, top-left)
-   - Mini-map or progress bar (bottom)
+   - Progress bar (bottom)
    - Current speed indicator
 
 3. **Crash State** (short)
@@ -96,6 +96,8 @@
    - "Race Again"
 
 5. **High Scores Screen**
+   - LocalStorage-backed top 10 list
+   - 3-letter initials entry on new high score
 
 ## 5. Graphics & Assets
 

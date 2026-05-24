@@ -11,7 +11,7 @@
 - [x] `index.html` mit Canvas (1280×720, letterboxed)
 - [x] Game Loop (requestAnimationFrame, fixed timestep 60 Hz, dt cap)
 - [x] Input Handling (`InputHandler`: held, wasPressed, wasReleased, steerAxis)
-- [x] State Machine: `menu | race | crash | finish | highscores`
+- [x] State Machine: `menu | countdown | race | crash | finish | highscores`
 - [x] Menu Screen (Titel + Start-Hint)
 - [x] Race Placeholder (Gras, Straße, Platzhalter-Auto)
 - [x] FPS-Counter (Dev-Overlay)
@@ -40,7 +40,7 @@
 - [x] Hindernis-Objekte (Strohballen + Reifen, auf der Fahrbahn platziert)
 - [x] Kollisionserkennung (Kreis-Kreis, Car-Radius 18)
 - [x] Kollisions-Response: lateralOffset bounce + 0.45s Freeze
-- [x] Screen-Flash (roter Overlay) + „−3s" Popup bei Crash
+- [x] Screen-Flash (roter Overlay) + „+3s" Popup bei Crash
 - [x] Border-Kollision (Streckenrand, bereit für Phase 2 Physik)
 - [x] Weichgezeichnete dunkle Schatten auf Heuballen, Reifen und Auto, keine Outlines
 
@@ -52,22 +52,22 @@
 - [x] Geschwindigkeitslinien (Speed Lines)            — radial ab 160 u/s
 - [ ] Horizont mit Parallax                           — aktuell nicht umgesetzt
 
-## Phase 6: Game Systems
+## Phase 6: Game Systems ✅
 
 - [x] Timer / Race Time Anzeige
-- [ ] Fortschrittsanzeige / Mini-Map (unten)
-- [ ] Renn-Zustände vollständig (Start-Countdown, Finish)
-- [ ] Highscore System mit LocalStorage (Top 10)
-- [ ] Name-Eingabe bei neuem Highscore
+- [x] Fortschrittsanzeige unten
+- [x] Renn-Zustände vollständig (Start-Countdown, Finish)
+- [x] Highscore System mit LocalStorage (Top 10)
+- [x] Name-Eingabe bei neuem Highscore
 
 ## Phase 7: Polish
 
 - [ ] Sound Effekte (Web Audio API)
-- [ ] Vollständiges Menü mit Highscore-Screen
+- [x] Vollständiges Menü mit Highscore-Screen
 - [ ] Time-Ripple-Effekt bei Kollision
 - [ ] Mobile Touch Support (optional)
 - [ ] Performance Optimierungen
 
 ---
 
-**Aktueller Status:** Phase 2, 3, 4 und wesentliche Phase-5-Polish-Schritte abgeschlossen. Als nächstes: Phase 6 (Highscore/UI-Flows).
+**Aktueller Status:** Phase 2–6 abgeschlossen. Als nächstes: Phase 7 Polish.
