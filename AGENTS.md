@@ -67,18 +67,18 @@ vite.config.ts
 - Horizon line with parallax
 
 ## Current Status
-**Phase 3 complete** (Phase 2 physics deliberately deferred — car currently auto-follows centerline).
+**Phase 4 complete** (Phase 2 physics deliberately deferred — car currently auto-follows centerline).
 
 Running features:
 - `npm run dev` → Vite dev server
 - Menu → Race → Finish state machine
-- Procedural track: Catmull-Rom spline, 15 curved segments, ~8400 world units (~30 s)
-- Camera looks 120 world units ahead of car; car appears at ~36% from top
-- Hay bales along road edges (seeded RNG, reproducible)
-- Green start stripe / red finish stripe with labels
-- Car auto-drives centerline at 280 u/s; transitions to Finish screen
+- Procedural track: Catmull-Rom, 15 segments, ~8400 world units (~30 s)
+- ~30 obstacles on road (hay bales + tires), seeded placement
+- Collision detection: circle-circle (CAR_RADIUS=18); border check via lateralOffset
+- Crash response: bounce lateralOffset, 0.45 s freeze, red flash, "−3s" popup
+- All 3D objects have flat offset shadows (dx=5, dy=6); no outlines
 
-Next: **Phase 2** — replace `Car.update()` with real physics (gravity, steering, friction).
+Next: **Phase 2** — replace `Car.update()` with gravity + steering + friction. `lateralOffset` and `frozen` hooks are already in place.
 
 ## Visual Style
 - **Aesthetic:** Minimalist, flat comic — hard outlines, no gradients

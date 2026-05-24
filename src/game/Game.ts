@@ -1,6 +1,8 @@
-import { InputHandler } from '../utils/InputHandler';
-import { Track }        from './Track';
-import { Car }          from './Car';
+import { InputHandler }                    from '../utils/InputHandler';
+import { Track }                           from './Track';
+import { Car, CAR_RADIUS }                 from './Car';
+import { placeObstacles, renderObstacle }  from './Obstacle';
+import type { Obstacle }                   from './Obstacle';
 
 export type GameState = 'menu' | 'race' | 'crash' | 'finish' | 'highscores';
 
@@ -22,12 +24,17 @@ export class Game {
   private running = false;
 
   // Sub-systems (initialised in initRace, always valid after first call)
-  private track!: Track;
-  private car!:   Car;
+  private track!:     Track;
+  private car!:       Car;
+  private obstacles:  Obstacle[] = [];
 
   // Camera (world coordinates of screen centre)
   private camX = 0;
   private camY = 0;
+
+  // Crash feedback
+  private crashFlash  = 0;  // 0–1, fades after collision
+  private crashPopup  = 0;  // seconds remaining for "−3s" label
 
   // Frame timing
   private lastTimestamp = 0;
@@ -52,13 +59,16 @@ export class Game {
 
   // ─── Init ──────────────────────────────────────────────────────────────────
 
-  /** (Re-)create track and car. Called on first load and on "race again". */
+  /** (Re-)create track, car and obstacles. Called on first load and "race again". */
   private initRace(): void {
-    this.track = new Track();
-    this.car   = new Car(this.track);
-    const s    = this.track.getSampleAtDist(0);
-    this.camX  = s.x;
-    this.camY  = s.y + CAM_AHEAD;
+    this.track     = new Track();
+    this.car       = new Car(this.track);
+    this.obstacles = placeObstacles(this.track, 0xA5C3);
+    this.crashFlash = 0;
+    this.crashPopup = 0;
+    const s = this.track.getSampleAtDist(0);
+    this.camX = s.x;
+    this.camY = s.y + CAM_AHEAD;
   }
 
   // ─── Sizing ────────────────────────────────────────────────────────────────
@@ -135,9 +145,39 @@ export class Game {
       return;
     }
 
+    // ── Collision: obstacles ─────────────────────────────────────────────────
+    if (this.car.frozen <= 0) {
+      for (const obs of this.obstacles) {
+        const dx = this.car.worldX - obs.wx;
+        const dy = this.car.worldY - obs.wy;
+        if (Math.hypot(dx, dy) < CAR_RADIUS + obs.radius) {
+          this.triggerCrash();
+          break; // one collision per tick
+        }
+      }
+    }
+
+    // ── Collision: road borders ──────────────────────────────────────────────
+    if (this.car.frozen <= 0) {
+      const s = this.track.getSampleAtDist(this.car.dist);
+      if (Math.abs(this.car.lateralOffset) > s.halfWidth - CAR_RADIUS) {
+        this.triggerCrash();
+      }
+    }
+
+    // ── Crash feedback decay ─────────────────────────────────────────────────
+    this.crashFlash = Math.max(0, this.crashFlash - dt * 2.8);
+    this.crashPopup = Math.max(0, this.crashPopup - dt);
+
     // Camera: direct follow with look-ahead so more track is visible ahead
     this.camX = this.car.worldX;
     this.camY = this.car.worldY + CAM_AHEAD;
+  }
+
+  private triggerCrash(): void {
+    this.car.onCollision(this.track);
+    this.crashFlash = 1.0;
+    this.crashPopup = 0.9;
   }
 
   private updateFinish(_dt: number): void {
@@ -223,11 +263,37 @@ export class Game {
     ctx.fillStyle = '#6abf3a';
     ctx.fillRect(0, 0, W, H);
 
-    // Track (road + borders + dashes + bales + start/finish)
+    // Track (road + borders + bales + start/finish)
     this.track.render(ctx, this.camX, this.camY, W, H);
+
+    // Road obstacles
+    const cullY = H * 0.6 + 60;
+    for (const obs of this.obstacles) {
+      const sx = obs.wx - this.camX + W * 0.5;
+      const sy = obs.wy - this.camY + H * 0.5;
+      if (sy < -cullY || sy > H + cullY || sx < -80 || sx > W + 80) continue;
+      renderObstacle(ctx, sx, sy, obs);
+    }
 
     // Car
     this.car.render(ctx, this.camX, this.camY, W, H);
+
+    // Crash flash overlay
+    if (this.crashFlash > 0) {
+      ctx.fillStyle = `rgba(210,30,30,${(this.crashFlash * 0.30).toFixed(3)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // "−3s" popup
+    if (this.crashPopup > 0) {
+      const alpha = Math.min(1, this.crashPopup * 5);
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.font = '800 52px "Open Sans", sans-serif';
+      ctx.fillStyle = `rgba(200,20,20,${alpha.toFixed(3)})`;
+      ctx.fillText('−3s', W * 0.5, H * 0.33);
+      ctx.restore();
+    }
 
     // ESC hint
     ctx.save();

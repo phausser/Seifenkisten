@@ -35,12 +35,14 @@
 - [x] Start- und Ziellinie (farbige Streifen + Label)
 - [x] `getEdgesAt(worldY)` für Kollisionserkennung (Phase 4)
 
-## Phase 4: Hindernisse & Kollisionen
+## Phase 4: Hindernisse & Kollisionen ✅
 
-- [ ] Hindernis-Objekte (Strohballen, Reifen)
-- [ ] Kollisionserkennung (Circle-Rect / Polygon)
-- [ ] Kollisions-Response: Zurück in Mitte + 3s Zeitstrafe
-- [ ] Screen-Flash + kurzes Freeze bei Crash
+- [x] Hindernis-Objekte (Strohballen + Reifen, auf der Fahrbahn platziert)
+- [x] Kollisionserkennung (Kreis-Kreis, Car-Radius 18)
+- [x] Kollisions-Response: lateralOffset bounce + 0.45s Freeze
+- [x] Screen-Flash (roter Overlay) + „−3s" Popup bei Crash
+- [x] Border-Kollision (Streckenrand, bereit für Phase 2 Physik)
+- [x] Schatten auf allen 3D-Objekten (Heuballen, Reifen, Auto), keine Outlines
 
 ## Phase 5: Rendering & Effekte
 
@@ -68,4 +70,4 @@
 
 ---
 
-**Aktueller Status:** Phase 3 abgeschlossen (Phase 2 Physik folgt als nächstes). Bereit für Phase 2.
+**Aktueller Status:** Phase 4 abgeschlossen. Als nächstes: Phase 2 (Physik) — dann greifen Kollisionen und Lenkung zusammen.

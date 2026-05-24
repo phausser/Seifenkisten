@@ -52,7 +52,7 @@ src/
 | 1 – Grundgerüst | ✅ | Vite, Canvas, Game Loop, Input, State Machine |
 | 2 – Physik | 🔲 | Car, Gravity, Lenkung, Trägheit |
 | 3 – Strecke | ✅ | Catmull-Rom Spline, Heuballen, Start/Ziel, Kamera |
-| 4 – Kollisionen | 🔲 | Hindernisse, Zeitstrafe |
+| 4 – Kollisionen | ✅ | Hindernisse, Kollision, Flash, Zeitstrafe, Schatten |
 | 5 – Rendering | 🔲 | Pseudo-3D, Partikel |
 | 6 – Game Systems | 🔲 | Timer, Highscores |
 | 7 – Polish | 🔲 | Sound, UI, Mobile |

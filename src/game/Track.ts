@@ -262,19 +262,22 @@ export class Track {
       const by = b.wy - camY + H * 0.5;
       if (by < -cull || by > H + cull || bx < -cull || bx > W + cull) continue;
 
-      // Body
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.20)';
+      ctx.beginPath();
+      ctx.arc(bx + 5, by + 6, BALE_R, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Body — no outline
       ctx.fillStyle = '#d4a017';
-      ctx.strokeStyle = '#111111';
-      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(bx, by, BALE_R, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
 
-      // Binding detail lines
+      // Binding detail lines (internal, not an outline)
+      const r = BALE_R * 0.6;
       ctx.strokeStyle = '#b08010';
       ctx.lineWidth = 1.5;
-      const r = BALE_R * 0.6;
       ctx.beginPath();
       ctx.moveTo(bx - r, by); ctx.lineTo(bx + r, by);
       ctx.moveTo(bx, by - r); ctx.lineTo(bx, by + r);
