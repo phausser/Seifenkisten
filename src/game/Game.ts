@@ -1,53 +1,73 @@
 import { InputHandler } from '../utils/InputHandler';
+import { Track }        from './Track';
+import { Car }          from './Car';
 
 export type GameState = 'menu' | 'race' | 'crash' | 'finish' | 'highscores';
 
-const TARGET_W = 1280;
-const TARGET_H = 720;
-const FIXED_DT = 1 / 60; // 60 Hz physics tick
+const TARGET_W      = 1280;
+const TARGET_H      = 720;
+const FIXED_DT      = 1 / 60;  // 60 Hz physics tick
+const CAM_AHEAD     = 120;      // world units camera looks ahead of car
 
 /**
  * Core game loop and state machine.
- * Owns the canvas, the clock, and all sub-systems.
+ * Owns the canvas, clock, camera, and all sub-systems.
  */
 export class Game {
   readonly canvas: HTMLCanvasElement;
-  readonly ctx: CanvasRenderingContext2D;
-  readonly input: InputHandler;
+  readonly ctx:    CanvasRenderingContext2D;
+  readonly input:  InputHandler;
 
   private state: GameState = 'menu';
   private running = false;
 
+  // Sub-systems (initialised in initRace, always valid after first call)
+  private track!: Track;
+  private car!:   Car;
+
+  // Camera (world coordinates of screen centre)
+  private camX = 0;
+  private camY = 0;
+
   // Frame timing
   private lastTimestamp = 0;
-  private accumulator = 0;
+  private accumulator   = 0;
 
-  // Debug overlay
-  private fps = 0;
+  // Dev overlay
+  private fps        = 0;
   private frameCount = 0;
-  private fpsTimer = 0;
+  private fpsTimer   = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get 2D context');
-    this.ctx = ctx;
+    this.ctx   = ctx;
     this.input = new InputHandler();
 
+    this.initRace();   // pre-generate track so it's ready on first start
     this.resize();
     window.addEventListener('resize', () => this.resize());
+  }
+
+  // ─── Init ──────────────────────────────────────────────────────────────────
+
+  /** (Re-)create track and car. Called on first load and on "race again". */
+  private initRace(): void {
+    this.track = new Track();
+    this.car   = new Car(this.track);
+    const s    = this.track.getSampleAtDist(0);
+    this.camX  = s.x;
+    this.camY  = s.y + CAM_AHEAD;
   }
 
   // ─── Sizing ────────────────────────────────────────────────────────────────
 
   private resize(): void {
-    const scaleX = window.innerWidth / TARGET_W;
-    const scaleY = window.innerHeight / TARGET_H;
-    const scale = Math.min(scaleX, scaleY);
-
-    this.canvas.width = TARGET_W;
+    const scale = Math.min(window.innerWidth / TARGET_W, window.innerHeight / TARGET_H);
+    this.canvas.width  = TARGET_W;
     this.canvas.height = TARGET_H;
-    this.canvas.style.width = `${TARGET_W * scale}px`;
+    this.canvas.style.width  = `${TARGET_W * scale}px`;
     this.canvas.style.height = `${TARGET_H * scale}px`;
   }
 
@@ -61,10 +81,9 @@ export class Game {
   private loop(timestamp: number): void {
     if (!this.running) return;
 
-    const rawDt = Math.min((timestamp - this.lastTimestamp) / 1000, 0.1); // cap at 100ms
+    const rawDt = Math.min((timestamp - this.lastTimestamp) / 1000, 0.1);
     this.lastTimestamp = timestamp;
 
-    // FPS counter
     this.frameCount++;
     this.fpsTimer += rawDt;
     if (this.fpsTimer >= 1) {
@@ -73,7 +92,6 @@ export class Game {
       this.fpsTimer -= 1;
     }
 
-    // Fixed-timestep accumulator
     this.accumulator += rawDt;
     while (this.accumulator >= FIXED_DT) {
       this.update(FIXED_DT);
@@ -82,7 +100,6 @@ export class Game {
 
     this.render();
     this.input.flush();
-
     requestAnimationFrame((t) => this.loop(t));
   }
 
@@ -90,22 +107,44 @@ export class Game {
 
   private update(dt: number): void {
     switch (this.state) {
-      case 'menu':
-        this.updateMenu(dt);
-        break;
-      case 'race':
-        this.updateRace(dt);
-        break;
+      case 'menu':   this.updateMenu(dt);   break;
+      case 'race':   this.updateRace(dt);   break;
+      case 'finish': this.updateFinish(dt); break;
     }
   }
 
   private updateMenu(_dt: number): void {
     if (this.input.wasPressed('Space') || this.input.wasPressed('Enter')) {
+      this.initRace();
       this.setState('race');
     }
   }
 
-  private updateRace(_dt: number): void {
+  private updateRace(dt: number): void {
+    if (this.input.wasPressed('Escape')) {
+      this.setState('menu');
+      return;
+    }
+
+    this.car.update(dt, this.track);
+
+    // Clamp car at finish
+    if (this.car.dist >= this.track.finishDist) {
+      this.car.dist = this.track.finishDist;
+      this.setState('finish');
+      return;
+    }
+
+    // Camera: direct follow with look-ahead so more track is visible ahead
+    this.camX = this.car.worldX;
+    this.camY = this.car.worldY + CAM_AHEAD;
+  }
+
+  private updateFinish(_dt: number): void {
+    if (this.input.wasPressed('Space') || this.input.wasPressed('Enter')) {
+      this.initRace();
+      this.setState('race');
+    }
     if (this.input.wasPressed('Escape')) {
       this.setState('menu');
     }
@@ -120,41 +159,37 @@ export class Game {
   private render(): void {
     const { ctx, canvas } = this;
 
-    // Clear — warm off-white base
+    // Base clear
     ctx.fillStyle = '#f5f2eb';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     switch (this.state) {
-      case 'menu':
-        this.renderMenu();
-        break;
-      case 'race':
-        this.renderRace();
-        break;
+      case 'menu':   this.renderMenu();   break;
+      case 'race':   this.renderRace();   break;
+      case 'finish': this.renderFinish(); break;
     }
 
     this.renderHUD();
   }
 
+  // ── Menu ───────────────────────────────────────────────────────────────────
+
   private renderMenu(): void {
     const { ctx, canvas } = this;
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
+    const cx = canvas.width  * 0.5;
+    const cy = canvas.height * 0.5;
 
     ctx.save();
     ctx.textAlign = 'center';
 
-    // Title — large, bold, black on light background
     ctx.font = '800 76px "Open Sans", sans-serif';
     ctx.fillStyle = '#111111';
     ctx.fillText('SEIFENKISTEN RENNEN', cx, cy - 70);
 
-    // Subtitle — smaller, muted
     ctx.font = '700 30px "Open Sans", sans-serif';
     ctx.fillStyle = '#555550';
     ctx.fillText('TIME DRIFT', cx, cy - 26);
 
-    // Divider
     ctx.strokeStyle = '#111111';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -162,20 +197,15 @@ export class Game {
     ctx.lineTo(cx + 200, cy + 4);
     ctx.stroke();
 
-    // Start hint — pill button look
-    const btnW = 340;
-    const btnH = 52;
-    const btnX = cx - btnW / 2;
-    const btnY = cy + 24;
+    const btnW = 340, btnH = 52;
     ctx.fillStyle = '#111111';
     ctx.beginPath();
-    ctx.roundRect(btnX, btnY, btnW, btnH, 6);
+    ctx.roundRect(cx - btnW / 2, cy + 24, btnW, btnH, 6);
     ctx.fill();
     ctx.font = '700 22px "Open Sans", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('SPACE · ENTER — Start', cx, btnY + 34);
+    ctx.fillText('SPACE · ENTER — Start', cx, cy + 58);
 
-    // Controls hint
     ctx.font = '400 16px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
     ctx.fillText('Steuerung: ← → oder A D', cx, cy + 118);
@@ -183,103 +213,84 @@ export class Game {
     ctx.restore();
   }
 
+  // ── Race ───────────────────────────────────────────────────────────────────
+
   private renderRace(): void {
     const { ctx, canvas } = this;
-    const cx = canvas.width / 2;
+    const W = canvas.width, H = canvas.height;
 
-    // Flat grass — bright comic green
+    // Grass background
     ctx.fillStyle = '#6abf3a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, W, H);
 
-    // Road — mid gray with hard edges (comic flat)
-    const roadLeft = cx - 200;
-    const roadW = 400;
-    ctx.fillStyle = '#b0aead';
-    ctx.fillRect(roadLeft, 0, roadW, canvas.height);
+    // Track (road + borders + dashes + bales + start/finish)
+    this.track.render(ctx, this.camX, this.camY, W, H);
 
-    // Road border stripes — black, crisp
-    ctx.fillStyle = '#111111';
-    ctx.fillRect(roadLeft - 6, 0, 6, canvas.height);
-    ctx.fillRect(roadLeft + roadW, 0, 6, canvas.height);
+    // Car
+    this.car.render(ctx, this.camX, this.camY, W, H);
 
-    // Center dashes — white
-    ctx.setLineDash([40, 30]);
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(cx, 0);
-    ctx.lineTo(cx, canvas.height);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Car — body + 2 axles + 2 tires
-    ctx.save();
-    ctx.translate(cx, canvas.height / 2);
-    this.drawCar(ctx);
-    ctx.restore();
-
-    // ESC hint — black on grass strip
+    // ESC hint
     ctx.save();
     ctx.textAlign = 'right';
-    ctx.fillStyle = '#111111';
     ctx.font = '400 14px "Open Sans", sans-serif';
-    ctx.fillText('[ESC] Menü', canvas.width - 14, canvas.height - 14);
+    ctx.fillStyle = '#111111';
+    ctx.fillText('[ESC] Menü', W - 14, H - 14);
     ctx.restore();
   }
 
-  /**
-   * Draw the soapbox car centered at the current canvas origin.
-   * Front of car points toward negative Y (uphill on screen = into the track).
-   *
-   * Structure:
-   *   - Body:       long rectangle, no outline
-   *   - Rear axle:  black rectangle, wider than body
-   *   - Front axle: black rectangle, wider than body
-   *   - Two tires:  black rounded rects at the ends of each axle
-   */
-  private drawCar(ctx: CanvasRenderingContext2D): void {
-    const bodyW = 28;
-    const bodyH = 68;
-    const axleW = 52;   // extends 12px beyond body on each side
-    const axleH = 7;
-    const tireW = 13;
-    const tireH = 22;
-    const tireR = 3;    // corner radius for rounded tire
+  // ── Finish ─────────────────────────────────────────────────────────────────
 
-    // ── Body (no outline) ────────────────────────────────────────────
-    ctx.fillStyle = '#e63030';
-    ctx.fillRect(-bodyW / 2, -bodyH / 2, bodyW, bodyH);
+  private renderFinish(): void {
+    const { ctx, canvas } = this;
+    const W = canvas.width, H = canvas.height;
+    const cx = W * 0.5, cy = H * 0.5;
 
-    // ── Axles ────────────────────────────────────────────────────────
+    // Show track in background (frozen at finish position)
+    ctx.fillStyle = '#6abf3a';
+    ctx.fillRect(0, 0, W, H);
+    this.track.render(ctx, this.camX, this.camY, W, H);
+    this.car.render(ctx, this.camX, this.camY, W, H);
+
+    // Overlay panel
+    ctx.fillStyle = 'rgba(245,242,235,0.92)';
+    ctx.beginPath();
+    ctx.roundRect(cx - 260, cy - 110, 520, 220, 8);
+    ctx.fill();
+    ctx.strokeStyle = '#111111';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.textAlign = 'center';
+
+    ctx.font = '800 52px "Open Sans", sans-serif';
     ctx.fillStyle = '#111111';
-    const rearY  = bodyH / 2 - 14;   // rear axle (bottom)
-    const frontY = -(bodyH / 2 - 14); // front axle (top)
+    ctx.fillText('ZIEL ERREICHT!', cx, cy - 34);
 
-    ctx.fillRect(-axleW / 2, rearY  - axleH / 2, axleW, axleH);
-    ctx.fillRect(-axleW / 2, frontY - axleH / 2, axleW, axleH);
+    ctx.font = '400 18px "Open Sans", sans-serif';
+    ctx.fillStyle = '#555550';
+    ctx.fillText('Temporaler Checkpoint erreicht.', cx, cy + 10);
 
-    // ── Tires (rounded rects, one pair per axle) ─────────────────────
+    const btnW = 300, btnH = 48;
     ctx.fillStyle = '#111111';
-    const tireOffsetX = axleW / 2 - tireW / 2;
+    ctx.beginPath();
+    ctx.roundRect(cx - btnW / 2, cy + 34, btnW, btnH, 6);
+    ctx.fill();
+    ctx.font = '700 20px "Open Sans", sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('SPACE — Nochmal', cx, cy + 64);
 
-    for (const axleY of [rearY, frontY]) {
-      for (const side of [-1, 1]) {
-        const tx = side * tireOffsetX - tireW / 2;
-        const ty = axleY - tireH / 2;
-        ctx.beginPath();
-        ctx.roundRect(tx, ty, tireW, tireH, tireR);
-        ctx.fill();
-      }
-    }
+    ctx.restore();
   }
+
+  // ── HUD ────────────────────────────────────────────────────────────────────
 
   private renderHUD(): void {
     const { ctx } = this;
-    // FPS counter — dev overlay, small, black
     ctx.save();
     ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.font = '400 13px "Open Sans", sans-serif';
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.fillText(`${this.fps} fps`, 10, 20);
     ctx.restore();
   }

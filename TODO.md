@@ -27,13 +27,13 @@
 - [ ] Rotation Damping
 - [ ] Feintuning des Fahrgefühls
 
-## Phase 3: Prozedurale Strecke
+## Phase 3: Prozedurale Strecke ✅
 
-- [ ] Track Generation System (Bezier/Spline, immer bergab)
-- [ ] Feste + variable Straßenbreite
-- [ ] Rand-Markierungen (Heuballen als Barrieren)
-- [ ] Start- und Ziellinie
-- [ ] Kollisionserkennung mit Streckenrändern
+- [x] Track Generation System (Catmull-Rom Spline, immer bergab)
+- [x] Feste Straßenbreite (variable Breite → Phase 5 Polish)
+- [x] Rand-Markierungen (Heuballen, zufällig platziert)
+- [x] Start- und Ziellinie (farbige Streifen + Label)
+- [x] `getEdgesAt(worldY)` für Kollisionserkennung (Phase 4)
 
 ## Phase 4: Hindernisse & Kollisionen
 
@@ -68,4 +68,4 @@
 
 ---
 
-**Aktueller Status:** Phase 1 abgeschlossen. Bereit für Phase 2.
+**Aktueller Status:** Phase 3 abgeschlossen (Phase 2 Physik folgt als nächstes). Bereit für Phase 2.

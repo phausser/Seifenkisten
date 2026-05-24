@@ -17,15 +17,16 @@ index.html
 src/
   main.ts              # entry — mounts Game on #game-canvas
   game/
-    Game.ts            # game loop, state machine, render dispatch
-    Car.ts             # physics entity (Phase 2)
-    Track.ts           # procedural generation (Phase 3)
-    Obstacle.ts        # hay bales, tires (Phase 4)
+    Game.ts            # game loop, state machine, camera, render dispatch
+    Car.ts             # car entity: position, angle, render; Phase 2 adds physics
+    Track.ts           # procedural Catmull-Rom track; samples[], bales[], queries
+    Obstacle.ts        # dynamic obstacles: tires (Phase 4)
     Physics.ts         # collision, impulse response (Phase 4)
     ParticleSystem.ts  # dust, sparks, time trails (Phase 5)
   ui/                  # menu, HUD, highscores (Phase 6–7)
   utils/
     InputHandler.ts    # keyboard state (held / wasPressed / steerAxis)
+    math.ts            # Vec2, catmullRom(), Rng (seeded PRNG)
 tsconfig.json
 vite.config.ts
 ```
@@ -66,13 +67,18 @@ vite.config.ts
 - Horizon line with parallax
 
 ## Current Status
-**Phase 1 complete.** Running scaffold:
-- Vite dev server: `npm run dev`
-- Menu screen with neon title, SPACE/ENTER starts race
-- Race placeholder (road + car rectangle visible)
-- FPS counter top-left (dev overlay)
+**Phase 3 complete** (Phase 2 physics deliberately deferred — car currently auto-follows centerline).
 
-Next: **Phase 2** — `Car.ts` with real physics.
+Running features:
+- `npm run dev` → Vite dev server
+- Menu → Race → Finish state machine
+- Procedural track: Catmull-Rom spline, 15 curved segments, ~8400 world units (~30 s)
+- Camera looks 120 world units ahead of car; car appears at ~36% from top
+- Hay bales along road edges (seeded RNG, reproducible)
+- Green start stripe / red finish stripe with labels
+- Car auto-drives centerline at 280 u/s; transitions to Finish screen
+
+Next: **Phase 2** — replace `Car.update()` with real physics (gravity, steering, friction).
 
 ## Visual Style
 - **Aesthetic:** Minimalist, flat comic — hard outlines, no gradients
