@@ -24,6 +24,8 @@
 - [x] Lenkung mit Trägheit (angular velocity)  — inkl. Damping
 - [x] Geschwindigkeitsabhängige Lenkempfindlichkeit
 - [x] Reibung / Drag (Straße vs. Gras)  — separates drag + lateral grip
+- [x] Bremse auf ↓ / S
+- [x] Direkteres Lenkgefühl und Drift in Kurven
 - [x] Rotation Damping
 - [x] Feintuning des Fahrgefühls  — Rolling start, bounce collision response
 

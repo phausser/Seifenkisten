@@ -179,7 +179,7 @@ export class Game {
     }
 
     this.raceTime += dt;
-    this.car.update(dt, this.input.steerAxis, this.track);
+    this.car.update(dt, this.input.steerAxis, this.input.brakeAxis, this.track);
 
     // Clamp car at finish
     if (this.car.dist >= this.track.finishDist) {
@@ -418,7 +418,7 @@ export class Game {
 
     ctx.font = '400 16px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
-    ctx.fillText('Steuerung: ← → oder A D', cx, cy + 118);
+    ctx.fillText('Steuerung: ← → oder A D · Bremse: ↓ oder S', cx, cy + 118);
     ctx.fillText('H — Bestzeiten', cx, cy + 144);
 
     ctx.restore();

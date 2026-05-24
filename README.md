@@ -24,6 +24,7 @@ npm run preview  # Build lokal testen
 |-------|--------|
 | ← / A | Lenken links |
 | → / D | Lenken rechts |
+| ↓ / S | Bremsen |
 | SPACE / ENTER | Menü bestätigen |
 | ESC | Zurück zum Menü |
 

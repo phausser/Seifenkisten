@@ -52,6 +52,11 @@ export class InputHandler {
     return left + right;
   }
 
+  /** Brake input: 1 while braking, 0 otherwise. */
+  get brakeAxis(): number {
+    return this.isHeld('ArrowDown') || this.isHeld('KeyS') ? 1 : 0;
+  }
+
   /** Call once at the end of each frame to clear per-frame sets. */
   flush(): void {
     this.justPressed.clear();

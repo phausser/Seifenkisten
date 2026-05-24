@@ -47,6 +47,7 @@ vite.config.ts
 - `isHeld(code)` — continuous
 - `wasPressed(code)` / `wasReleased(code)` — single-frame edge detection
 - `steerAxis` — returns −1 / 0 / +1 (A/Left = −1, D/Right = +1)
+- `brakeAxis` — returns 1 while Down/S is held, otherwise 0
 - `flush()` called at end of every frame
 
 ### Canvas Scaling
@@ -56,8 +57,9 @@ vite.config.ts
 
 ## Physics Rules
 - Gravity → forward (downward-Y) acceleration
-- Steering: angular velocity, speed-dependent sensitivity
-- Friction: road < grass/off-track
+- Steering: direct angular response with speed-dependent sensitivity
+- Friction/grip: enough lateral slip for visible drifting in curves; grass has much lower grip
+- Brake: Down/S reduces forward speed without cancelling sideways drift
 - Collision response: separate + impulse push toward center + 3s time penalty
 
 ## Rendering Rules

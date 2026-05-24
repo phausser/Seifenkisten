@@ -28,12 +28,13 @@
 - **Soapbox Car** (Seifenkiste): Simple rectangular body with wheels, minimalist design.
 - **Controls:**
   - Left/Right Arrow or A/D: Steer (angular velocity)
-  - Optional: Up/Down for minor acceleration/brake (but mainly gravity driven)
+  - Down Arrow or S: Brake
 - **Physics:**
   - Downhill gravity acceleration
   - Realistic momentum and inertia
   - Velocity-dependent turning radius (harder to turn at high speed)
-  - Friction (road + grass/off-track)
+  - Friction and lateral grip tuned for visible drifting in curves
+  - Brake reduces forward speed while preserving sideways drift
   - Rotation damping
   - Collision response: bouncy but forgiving
 

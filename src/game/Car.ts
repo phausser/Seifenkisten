@@ -24,25 +24,28 @@ export const CAR_RADIUS = 18;
 const GRAVITY = 240;
 
 /** Linear drag on the road surface.  Terminal velocity ≈ GRAVITY / ROAD_DRAG. */
-const ROAD_DRAG = 0.72;   // terminal ≈ 333 u/s
+const ROAD_DRAG = 0.62;   // terminal ≈ 387 u/s
 
 /** Much higher drag off-road so the car slows noticeably on grass. */
 const GRASS_DRAG = 3.2;    // terminal ≈  75 u/s
 
 /** Lateral velocity is killed this fraction per second on road (high = grippy). */
-const LATERAL_GRIP = 9.0;
+const LATERAL_GRIP = 4.2;
 
 /** Reduced grip on grass – the car slides more. */
-const GRASS_LATERAL_GRIP = 1.8;
+const GRASS_LATERAL_GRIP = 1.2;
 
 /** Angular acceleration from a full steer input at zero speed (rad/s²). */
-const STEER_ACCEL = 5.5;
+const STEER_ACCEL = 11.0;
 
 /** Speed-dependent steer reduction:  effective = STEER_ACCEL / (1 + v * k). */
-const STEER_SPEED_FACTOR = 0.0028;
+const STEER_SPEED_FACTOR = 0.0017;
 
 /** Angular velocity exponential decay rate (1/s). */
-const ANG_DAMP = 7.0;
+const ANG_DAMP = 10.0;
+
+/** Brake force applied opposite forward movement (u/s²). */
+const BRAKE_FORCE = 520;
 
 /** Hard velocity cap (u/s). */
 const MAX_SPEED = 500;
@@ -102,9 +105,10 @@ export class Car {
    * Physics tick.
    * @param dt    fixed timestep (seconds)
    * @param steer steer axis: −1 = left, 0 = none, +1 = right
+   * @param brake brake axis: 0 = none, 1 = braking
    * @param track current track
    */
-  update(dt: number, steer: number, track: Track): void {
+  update(dt: number, steer: number, brake: number, track: Track): void {
     if (this.frozen > 0) {
       this.frozen -= dt;
       return;
@@ -131,6 +135,13 @@ export class Car {
     if (fwdSpeed > 0) {
       this.vx -= fwdX * drag * fwdSpeed * dt;
       this.vy -= fwdY * drag * fwdSpeed * dt;
+    }
+
+    // ── Brake – reduce forward speed without cancelling sideways drift ────────
+    if (brake > 0 && fwdSpeed > 0) {
+      const brakeDelta = Math.min(fwdSpeed, BRAKE_FORCE * brake * dt);
+      this.vx -= fwdX * brakeDelta;
+      this.vy -= fwdY * brakeDelta;
     }
 
     // ── Lateral grip – kill perpendicular velocity ─────────────────────────────
