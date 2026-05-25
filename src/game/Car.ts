@@ -4,9 +4,9 @@ import type { Track } from './Track';
 
 const BODY_W = 24;
 const BODY_H = 66;
-const AXLE_W = 58;
-const AXLE_H = 7;
-const TIRE_W = 13;
+const AXLE_W = 52;
+const AXLE_H = 5;
+const TIRE_W = 5;
 const TIRE_H = 22;
 const TIRE_R = 3;
 const SHADOW_COLOR = 'rgba(0,0,0,0.50)';

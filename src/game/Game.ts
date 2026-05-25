@@ -4,6 +4,7 @@ import { Car, CAR_RADIUS } from './Car';
 import { placeObstacles, renderObstacle } from './Obstacle';
 import { ParticleSystem } from './ParticleSystem';
 import { AudioSystem } from './AudioSystem';
+import { BirdSystem } from './BirdSystem';
 import type { Obstacle } from './Obstacle';
 
 export type GameState = 'menu' | 'countdown' | 'race' | 'finish' | 'highscores';
@@ -41,6 +42,7 @@ export class Game {
   private obstacles: Obstacle[] = [];
   private particles = new ParticleSystem();
   private audio = new AudioSystem();
+  private birds = new BirdSystem();
 
   // Camera (world coordinates of screen centre)
   private camX = 0;
@@ -90,6 +92,7 @@ export class Game {
     this.track = new Track();
     this.car = new Car(this.track);
     this.obstacles = placeObstacles(this.track, 0xA5C3);
+    this.birds.place(this.track, 0xB1D5);
     this.particles.clear();
     this.shakeAmt = 0;
     this.crashPopup = 0;
@@ -252,6 +255,10 @@ export class Game {
     // Camera: direct follow with look-ahead so more track is visible ahead
     this.camX = this.car.worldX;
     this.camY = this.car.worldY + CAM_AHEAD;
+
+    // Birds update after camera so screen positions are correct for this frame
+    this.birds.update(dt, this.car.worldX, this.car.worldY,
+      this.camX, this.camY, TARGET_W, TARGET_H);
   }
 
   private triggerCrash(): void {
@@ -503,6 +510,9 @@ export class Game {
     // ── Track (road + borders + bales + start/finish) ─────────────────────────
     this.track.render(ctx, this.camX, this.camY, W, H);
 
+    // ── Sitting birds (on road surface, behind obstacles) ─────────────────────
+    this.birds.renderSitting(ctx, this.camX, this.camY, W, H);
+
     // ── Road obstacles ────────────────────────────────────────────────────────
     const cullY = H * 0.6 + 80;
     for (const obs of this.obstacles) {
@@ -521,6 +531,9 @@ export class Game {
 
     // ── Speed lines ───────────────────────────────────────────────────────────
     this.renderSpeedLines(W, H);
+
+    // ── Flying birds (airborne, in front of car) ──────────────────────────────
+    this.birds.renderFlying(ctx);
 
     ctx.restore();  // end shake — overlays below are screen-stable
 
