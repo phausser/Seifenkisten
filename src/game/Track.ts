@@ -45,7 +45,7 @@ export class Track {
   /** Place a wall of hay bales across the road just past the finish line. */
   private placeFinishBarrier(): void {
     const BARRIER_COUNT = 7;
-    const s = this.getSampleAtDist(this.finishDist + BALE_R * 2.5);
+    const s = this.getSampleAtDist(this.totalLength - BALE_R * 2);
     const usableHalf = HALF_WIDTH - BALE_R;
     const baseAngle = Math.atan2(-s.ty, s.tx);
 

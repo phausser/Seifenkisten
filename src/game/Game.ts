@@ -638,10 +638,10 @@ export class Game {
     this.track.render(ctx, this.camX, this.camY, W, H);
     this.car.render(ctx, this.camX, this.camY, W, H);
 
-    // Overlay panel
+    // Overlay panel — tall enough for name-entry flow
     ctx.fillStyle = 'rgba(245,242,235,0.92)';
     ctx.beginPath();
-    ctx.roundRect(cx - 260, cy - 110, 520, 220, 8);
+    ctx.roundRect(cx - 280, cy - 130, 560, 300, 8);
     ctx.fill();
     ctx.strokeStyle = '#111111';
     ctx.lineWidth = 3;
@@ -652,24 +652,30 @@ export class Game {
 
     ctx.font = '800 52px "Open Sans", sans-serif';
     ctx.fillStyle = '#111111';
-    ctx.fillText('ZIEL ERREICHT!', cx, cy - 34);
+    ctx.fillText('ZIEL ERREICHT!', cx, cy - 70);
 
+    // Current time
     ctx.font = '800 32px "Open Sans", sans-serif';
     ctx.fillStyle = '#111111';
-    ctx.fillText(this.formatTime(this.finishTime), cx, cy + 8);
+    ctx.fillText(this.formatTime(this.finishTime), cx, cy - 26);
 
-    ctx.font = '400 18px "Open Sans", sans-serif';
-    ctx.fillStyle = '#555550';
-    ctx.fillText('Temporaler Checkpoint erreicht.', cx, cy + 38);
+    // Best time (same font, grey)
+    const best = this.highScores[0];
+    ctx.font = '400 13px "Open Sans", sans-serif';
+    ctx.fillStyle = '#888880';
+    ctx.fillText('Bestzeit', cx, cy + 8);
+    ctx.font = '800 32px "Open Sans", sans-serif';
+    ctx.fillStyle = best ? '#555550' : '#c9c2b4';
+    ctx.fillText(best ? this.formatTime(best.time) : '—:——.——', cx, cy + 40);
 
     if (this.pendingHighScoreRank !== null) {
       ctx.font = '700 18px "Open Sans", sans-serif';
       ctx.fillStyle = '#111111';
-      ctx.fillText(`Neue Bestzeit #${this.pendingHighScoreRank + 1}`, cx, cy + 72);
-      this.renderNameEntry(cx, cy + 106);
+      ctx.fillText(`Neue Bestzeit #${this.pendingHighScoreRank + 1}`, cx, cy + 74);
+      this.renderNameEntry(cx, cy + 110);
       ctx.font = '400 15px "Open Sans", sans-serif';
       ctx.fillStyle = '#555550';
-      ctx.fillText('3 Zeichen · ENTER speichern · BACKSPACE löschen', cx, cy + 146);
+      ctx.fillText('3 Zeichen · ENTER speichern · BACKSPACE löschen', cx, cy + 154);
       ctx.restore();
       return;
     }
@@ -677,15 +683,15 @@ export class Game {
     const btnW = 300, btnH = 48;
     ctx.fillStyle = '#111111';
     ctx.beginPath();
-    ctx.roundRect(cx - btnW / 2, cy + 58, btnW, btnH, 6);
+    ctx.roundRect(cx - btnW / 2, cy + 72, btnW, btnH, 6);
     ctx.fill();
     ctx.font = '700 20px "Open Sans", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('SPACE — Nochmal', cx, cy + 88);
+    ctx.fillText('SPACE — Nochmal', cx, cy + 104);
 
     ctx.font = '400 15px "Open Sans", sans-serif';
     ctx.fillStyle = '#555550';
-    ctx.fillText('H — Bestzeiten · ESC — Menü', cx, cy + 126);
+    ctx.fillText('H — Bestzeiten · ESC — Menü', cx, cy + 148);
 
     ctx.restore();
   }
@@ -795,6 +801,15 @@ export class Game {
       ctx.font = '800 32px "Open Sans", sans-serif';
       ctx.fillStyle = '#111111';
       ctx.fillText(this.formatTime(this.raceTime), 10, 78);
+
+      const best = this.highScores[0];
+      ctx.font = '400 13px "Open Sans", sans-serif';
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillText('Bestzeit', 10, 96);
+      ctx.font = '800 32px "Open Sans", sans-serif';
+      ctx.fillStyle = 'rgba(0,0,0,0.30)';
+      ctx.fillText(best ? this.formatTime(best.time) : '—:——.——', 10, 126);
+
       this.renderProgressBar();
     }
 
