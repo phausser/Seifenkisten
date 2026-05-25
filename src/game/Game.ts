@@ -6,7 +6,7 @@ import { ParticleSystem } from './ParticleSystem';
 import { AudioSystem } from './AudioSystem';
 import type { Obstacle } from './Obstacle';
 
-export type GameState = 'menu' | 'countdown' | 'race' | 'crash' | 'finish' | 'highscores';
+export type GameState = 'menu' | 'countdown' | 'race' | 'finish' | 'highscores';
 
 const TARGET_W = 1280;
 const TARGET_H = 720;

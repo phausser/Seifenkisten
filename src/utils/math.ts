@@ -45,3 +45,12 @@ export class Rng {
     return lo + this.next() * (hi - lo);
   }
 }
+
+/**
+ * Deterministic pseudo-random float in [0, 1).
+ * Used for stable per-object random decoration (hay straw positions, etc.).
+ */
+export function seededUnit(seed: number, salt: number): number {
+  const n = Math.sin(seed + salt * 12.9898) * 43758.5453;
+  return n - Math.floor(n);
+}

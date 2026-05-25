@@ -1,4 +1,4 @@
-import { Rng } from '../utils/math';
+import { Rng, seededUnit } from '../utils/math';
 import type { Track } from './Track';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -71,17 +71,25 @@ export function renderObstacle(
   obs: Obstacle,
 ): void {
   if (obs.kind === 'haybale') {
-    drawHayBale(ctx, sx, sy, obs.radius, obs.angle);
+    // Pass world coords so straw seed is stable regardless of camera position.
+    drawHayBale(ctx, sx, sy, obs.radius, obs.angle, obs.wx, obs.wy);
   } else {
     drawTire(ctx, sx, sy, obs.radius);
   }
 }
 
-function drawHayBale(
+/**
+ * Draw a hay bale at screen position (bx, by).
+ * worldX/worldY are used as the straw-pattern seed so the decoration stays
+ * stable as the camera scrolls.
+ * Exported so Track can reuse it for border bales.
+ */
+export function drawHayBale(
   ctx: CanvasRenderingContext2D,
   bx: number, by: number,
   r: number,
   angle: number,
+  worldX: number, worldY: number,
 ): void {
   const size = r * 1.65;
   const radius = 5;
@@ -119,7 +127,7 @@ function drawHayBale(
   ctx.lineWidth = 1.5;
   ctx.strokeStyle = HAY_LIGHT;
   ctx.beginPath();
-  drawHayLines(ctx, size, bx * 0.17 + by * 0.11);
+  drawHayLines(ctx, size, worldX * 0.17 + worldY * 0.11);
   ctx.stroke();
   ctx.restore();
 }
@@ -143,11 +151,6 @@ function drawHayLines(
     ctx.moveTo(x - dx, y - dy);
     ctx.lineTo(x + dx, y + dy);
   }
-}
-
-function seededUnit(seed: number, salt: number): number {
-  const n = Math.sin(seed + salt * 12.9898) * 43758.5453;
-  return n - Math.floor(n);
 }
 
 function drawTire(

@@ -1,5 +1,6 @@
 import { catmullRom, Rng } from '../utils/math';
 import type { Vec2 } from '../utils/math';
+import { drawHayBale } from './Obstacle';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -10,12 +11,6 @@ const NUM_SEGS = 15;   // number of curved segments (→ ~30 s at 280 u/s)
 const BALE_EVERY = 78;   // arc-length between hay-bale pairs
 const BALE_R = 22;   // hay-bale radius (world units)
 const BALE_OFF = BALE_R - 3; // keeps the inner edge close to the road edge
-const SHADOW_COLOR = 'rgba(0,0,0,0.50)';
-const SHADOW_BLUR = 10;
-const HAY_FILL = '#e0b23a';
-const HAY_DARK = '#bc8d24';
-const HAY_LIGHT = '#f0cf66';
-const HAY_LINE_COUNT = 12;
 const BALE_ANGLE_JITTER = Math.PI / 36; // ±5°
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -44,6 +39,25 @@ export class Track {
     this.totalLength = this.samples.at(-1)?.dist ?? 0;
     this.finishDist = this.totalLength - 280;
     this.placeBales(seed ^ 0xBEEF);
+    this.placeFinishBarrier();
+  }
+
+  /** Place a wall of hay bales across the road just past the finish line. */
+  private placeFinishBarrier(): void {
+    const BARRIER_COUNT = 7;
+    const s = this.getSampleAtDist(this.finishDist + BALE_R * 2.5);
+    const usableHalf = HALF_WIDTH - BALE_R;
+    const baseAngle = Math.atan2(-s.ty, s.tx);
+
+    for (let i = 0; i < BARRIER_COUNT; i++) {
+      const t = (i / (BARRIER_COUNT - 1)) * 2 - 1; // −1 … +1
+      const lateral = t * usableHalf;
+      this.bales.push({
+        wx: s.x + s.nx * lateral,
+        wy: s.y + s.ny * lateral,
+        angle: baseAngle,
+      });
+    }
   }
 
   // ── Generation ──────────────────────────────────────────────────────────────
@@ -158,19 +172,6 @@ export class Track {
     return lo;
   }
 
-  /**
-   * Returns road-edge X values at the track center nearest to worldY.
-   * Used for collision checks in Phase 4.
-   */
-  getEdgesAt(worldY: number): { cx: number; leftX: number; rightX: number } {
-    const s = this.samples[this.idxAtY(worldY)];
-    return {
-      cx: s.x,
-      leftX: s.x + s.nx * s.halfWidth,
-      rightX: s.x - s.nx * s.halfWidth,
-    };
-  }
-
   // ── Rendering ───────────────────────────────────────────────────────────────
 
   render(
@@ -241,8 +242,8 @@ export class Track {
     this.renderBales(ctx, camX, camY, W, H);
 
     // ── Start & finish lines ──────────────────────────────────────────────────
-    this.renderLine(ctx, camX, camY, W, H, 0, '#22cc44', 'START');
-    this.renderLine(ctx, camX, camY, W, H, this.finishDist, '#e63030', 'ZIEL');
+    this.renderLine(ctx, camX, camY, W, H, 0, '#ffffff', 'START');
+    this.renderLine(ctx, camX, camY, W, H, this.finishDist, '#ffffff', 'ZIEL');
   }
 
   private renderDash(
@@ -299,78 +300,13 @@ export class Track {
     W: number, H: number,
   ): void {
     const scx = (wx: number) => wx - camX + W * 0.5;
-    const scy = (wy: number) => camY - wy + H * 0.5;   // Y flipped
+    const scy = (wy: number) => camY - wy + H * 0.5;
 
     for (const b of this.bales) {
       const bx = scx(b.wx);
       const by = scy(b.wy);
-      const r = BALE_R;
-      const size = r * 1.65;
-
-      if (by < -(r + 20) || by > H + r + 20 || bx < -(r + 20) || bx > W + r + 20) continue;
-
-      // Shadow
-      ctx.save();
-      ctx.translate(bx + 4, by + 5);
-      ctx.rotate(b.angle);
-      ctx.fillStyle = SHADOW_COLOR;
-      ctx.filter = `blur(${SHADOW_BLUR}px)`;
-      ctx.beginPath();
-      ctx.roundRect(-size * 0.5, -size * 0.5, size, size, 5);
-      ctx.fill();
-      ctx.restore();
-
-      ctx.save();
-      ctx.translate(bx, by);
-      ctx.rotate(b.angle);
-
-      // Body
-      ctx.fillStyle = HAY_FILL;
-      ctx.beginPath();
-      ctx.roundRect(-size * 0.5, -size * 0.5, size, size, 5);
-      ctx.fill();
-
-      // Binding
-      ctx.strokeStyle = HAY_DARK;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-size * 0.22, -size * 0.5); ctx.lineTo(-size * 0.22, size * 0.5);
-      ctx.moveTo(size * 0.22, -size * 0.5); ctx.lineTo(size * 0.22, size * 0.5);
-      ctx.stroke();
-
-      // Short straw strokes
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = HAY_LIGHT;
-      ctx.beginPath();
-      this.drawHayLines(ctx, size, b.wx * 0.17 + b.wy * 0.11);
-      ctx.stroke();
-      ctx.restore();
+      if (by < -(BALE_R + 20) || by > H + BALE_R + 20 || bx < -(BALE_R + 20) || bx > W + BALE_R + 20) continue;
+      drawHayBale(ctx, bx, by, BALE_R, b.angle, b.wx, b.wy);
     }
-  }
-
-  private drawHayLines(
-    ctx: CanvasRenderingContext2D,
-    size: number,
-    seed: number,
-  ): void {
-    for (let i = 0; i < HAY_LINE_COUNT; i++) {
-      const xRand = Track.seededUnit(seed, i * 4 + 1);
-      const yRand = Track.seededUnit(seed, i * 4 + 2);
-      const aRand = Track.seededUnit(seed, i * 4 + 3);
-      const lRand = Track.seededUnit(seed, i * 4 + 4);
-      const x = (xRand - 0.5) * size * 0.68;
-      const y = (yRand - 0.5) * size * 0.68;
-      const angle = -0.45 + aRand * 0.9;
-      const len = size * (0.16 + lRand * 0.12);
-      const dx = Math.cos(angle) * len * 0.5;
-      const dy = Math.sin(angle) * len * 0.5;
-      ctx.moveTo(x - dx, y - dy);
-      ctx.lineTo(x + dx, y + dy);
-    }
-  }
-
-  private static seededUnit(seed: number, salt: number): number {
-    const n = Math.sin(seed + salt * 12.9898) * 43758.5453;
-    return n - Math.floor(n);
   }
 }
