@@ -47,7 +47,7 @@ export class Game {
   private camY = 0;
 
   // Crash feedback
-  private crashFlash = 0;  // 0–1, fades after collision
+  private shakeAmt = 0;    // screen shake magnitude (pixels), decays to 0
   private crashPopup = 0;  // seconds remaining for "+3s" label
   private rippleTime = 0;
 
@@ -91,7 +91,7 @@ export class Game {
     this.car = new Car(this.track);
     this.obstacles = placeObstacles(this.track, 0xA5C3);
     this.particles.clear();
-    this.crashFlash = 0;
+    this.shakeAmt = 0;
     this.crashPopup = 0;
     this.rippleTime = 0;
     this.raceTime = 0;
@@ -230,7 +230,7 @@ export class Game {
     }
 
     // ── Crash feedback decay ─────────────────────────────────────────────────
-    this.crashFlash = Math.max(0, this.crashFlash - dt * 2.8);
+    this.shakeAmt  = Math.max(0, this.shakeAmt  - dt * 42);
     this.crashPopup = Math.max(0, this.crashPopup - dt);
     this.rippleTime = Math.max(0, this.rippleTime - dt);
 
@@ -257,7 +257,7 @@ export class Game {
   private triggerCrash(): void {
     this.car.onCollision(this.track);
     this.raceTime += PENALTY_SECONDS;
-    this.crashFlash = 1.0;
+    this.shakeAmt = 14;
     this.crashPopup = 0.9;
     this.rippleTime = RIPPLE_DURATION;
     this.audio.crash();
@@ -266,7 +266,7 @@ export class Game {
   private triggerObstacleCrash(nx: number, ny: number, pushOut: number): void {
     this.car.onObstacleCollision(this.track, nx, ny, pushOut);
     this.raceTime += PENALTY_SECONDS;
-    this.crashFlash = 1.0;
+    this.shakeAmt = 14;
     this.crashPopup = 0.9;
     this.rippleTime = RIPPLE_DURATION;
     this.audio.crash();
@@ -487,9 +487,18 @@ export class Game {
     const { ctx, canvas } = this;
     const W = canvas.width, H = canvas.height;
 
-    // ── Grass background (full screen) ───────────────────────────────────────
+    // ── Grass background — drawn before shake so canvas edges stay covered ───
     ctx.fillStyle = '#3e753b';
     ctx.fillRect(0, 0, W, H);
+
+    // ── Screen shake: translate world, restore before HUD overlays ────────────
+    ctx.save();
+    if (this.shakeAmt > 0) {
+      ctx.translate(
+        (Math.random() - 0.5) * 2 * this.shakeAmt,
+        (Math.random() - 0.5) * 2 * this.shakeAmt,
+      );
+    }
 
     // ── Track (road + borders + bales + start/finish) ─────────────────────────
     this.track.render(ctx, this.camX, this.camY, W, H);
@@ -513,13 +522,10 @@ export class Game {
     // ── Speed lines ───────────────────────────────────────────────────────────
     this.renderSpeedLines(W, H);
 
-    // ── Crash flash overlay ───────────────────────────────────────────────────
-    this.renderRipple(W, H);
+    ctx.restore();  // end shake — overlays below are screen-stable
 
-    if (this.crashFlash > 0) {
-      ctx.fillStyle = `rgba(210,30,30,${(this.crashFlash * 0.30).toFixed(3)})`;
-      ctx.fillRect(0, 0, W, H);
-    }
+    // ── Ripple + "+3s" popup ──────────────────────────────────────────────────
+    this.renderRipple(W, H);
 
     // ── "+3s" popup ───────────────────────────────────────────────────────────
     if (this.crashPopup > 0) {

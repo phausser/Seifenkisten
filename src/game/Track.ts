@@ -39,13 +39,18 @@ export class Track {
     this.totalLength = this.samples.at(-1)?.dist ?? 0;
     this.finishDist = this.totalLength - 280;
     this.placeBales(seed ^ 0xBEEF);
-    this.placeFinishBarrier();
+    this.placeFinishBarrier(seed ^ 0xF1A1);
   }
 
-  /** Place a wall of hay bales across the road just past the finish line. */
-  private placeFinishBarrier(): void {
+  /** Place a wall of hay bales in the grass just past the end of the road. */
+  private placeFinishBarrier(seed: number): void {
     const BARRIER_COUNT = 7;
-    const s = this.getSampleAtDist(this.totalLength - BALE_R * 2);
+    const rng = new Rng(seed);
+    // Sample at the very end of the road, then project forward into the grass.
+    const s = this.getSampleAtDist(this.totalLength);
+    const overrun = BALE_R;
+    const baseX = s.x + s.tx * overrun;
+    const baseY = s.y + s.ty * overrun;
     const usableHalf = HALF_WIDTH - BALE_R;
     const baseAngle = Math.atan2(-s.ty, s.tx);
 
@@ -53,9 +58,9 @@ export class Track {
       const t = (i / (BARRIER_COUNT - 1)) * 2 - 1; // −1 … +1
       const lateral = t * usableHalf;
       this.bales.push({
-        wx: s.x + s.nx * lateral,
-        wy: s.y + s.ny * lateral,
-        angle: baseAngle,
+        wx: baseX + s.nx * lateral,
+        wy: baseY + s.ny * lateral,
+        angle: baseAngle + rng.range(-BALE_ANGLE_JITTER, BALE_ANGLE_JITTER),
       });
     }
   }
