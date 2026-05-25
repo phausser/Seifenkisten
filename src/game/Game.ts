@@ -189,6 +189,7 @@ export class Game {
 
   private updateRace(dt: number): void {
     if (this.input.wasPressed('Escape')) {
+      this.audio.squeal(0);
       this.setState('menu');
       return;
     }
@@ -241,6 +242,12 @@ export class Game {
       this.particles.emit(this.car.worldX, this.car.worldY, fwdX, fwdY, speed);
     }
     this.particles.update(dt);
+
+    // ── Tire squeal ───────────────────────────────────────────────────────────
+    const squealIntensity = this.car.frozen > 0
+      ? 0
+      : Math.max(0, (this.car.lateralSpeed - 25) / 100);
+    this.audio.squeal(squealIntensity);
 
     // Camera: direct follow with look-ahead so more track is visible ahead
     this.camX = this.car.worldX;
@@ -310,6 +317,7 @@ export class Game {
   }
 
   private finishRace(): void {
+    this.audio.squeal(0);
     this.finishTime = this.raceTime;
     const rank = this.getHighScoreRank(this.finishTime);
     if (rank !== null) {

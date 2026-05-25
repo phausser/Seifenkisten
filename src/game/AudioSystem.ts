@@ -4,6 +4,10 @@ export class AudioSystem {
   private ctx: AudioContext | null = null;
   private enabled = true;
 
+  // Persistent squeal chain (created once, gain driven each frame)
+  private squealGain:   GainNode | null = null;
+  private squealFilter: BiquadFilterNode | null = null;
+
   resume(): void {
     const audio = this.getContext();
     if (audio.state !== 'running') void audio.resume();
@@ -32,6 +36,58 @@ export class AudioSystem {
   save(): void {
     this.tone(740, 0.06, 0.025, 'square');
     this.tone(988, 0.11, 0.025, 'square');
+  }
+
+  /**
+   * Continuous tire-squeal effect.
+   * Call every frame with intensity 0–1; fades in/out smoothly.
+   * intensity = 0 → silent, 1 → full squeal.
+   */
+  squeal(intensity: number): void {
+    if (!this.enabled) return;
+    try {
+      const audio = this.getContext();
+      if (audio.state !== 'running') return;
+
+      // Lazy init: looping bandpass-filtered noise node graph
+      if (!this.squealGain) {
+        const SR = audio.sampleRate;
+        const buf = audio.createBuffer(1, SR * 0.2, SR);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+
+        const src = audio.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+
+        this.squealFilter = audio.createBiquadFilter();
+        this.squealFilter.type = 'bandpass';
+        this.squealFilter.frequency.value = 850;
+        this.squealFilter.Q.value = 8;
+
+        this.squealGain = audio.createGain();
+        this.squealGain.gain.value = 0;
+
+        src.connect(this.squealFilter);
+        this.squealFilter.connect(this.squealGain);
+        this.squealGain.connect(audio.destination);
+        src.start();
+      }
+
+      // Smooth gain ramp (τ = 60 ms)
+      const target = Math.min(1, intensity) * 0.18;
+      this.squealGain.gain.setTargetAtTime(target, audio.currentTime, 0.06);
+
+      // Pitch rises with drift intensity
+      if (intensity > 0 && this.squealFilter) {
+        this.squealFilter.frequency.setTargetAtTime(
+          750 + intensity * 300,
+          audio.currentTime, 0.1,
+        );
+      }
+    } catch {
+      this.enabled = false;
+    }
   }
 
   private getContext(): AudioContext {

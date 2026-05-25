@@ -260,6 +260,13 @@ export class Car {
     return Math.hypot(this.vx, this.vy);
   }
 
+  /** Lateral (sideways) speed (u/s) – used to detect drifting. */
+  get lateralSpeed(): number {
+    const perpX = Math.cos(this.angle);
+    const perpY = Math.sin(this.angle);
+    return Math.abs(this.vx * perpX + this.vy * perpY);
+  }
+
   // ─── Rendering ─────────────────────────────────────────────────────────────
 
   render(
