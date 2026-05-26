@@ -3,7 +3,7 @@ import type { Track } from './Track';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TRIGGER_DIST  = 88;   // world units – car distance that triggers flight
+const TRIGGER_DIST  = 160;  // world units – car distance that triggers flight
 const GROUP_SPACING = 3000; // min arc-length between groups (→ 2–3 per course)
 const FLAP_SPEED    = 14;   // rad/s (≈ 2.2 flaps/s)
 
@@ -27,6 +27,8 @@ const TAIL_REAR  =  9;   // tail tip Y
 interface BirdOffset {
   dx: number; dy: number;
   angle: number;            // random resting orientation
+  phase: number;            // animation phase offset [0, 1)
+  idleType: 'peck' | 'look'; // which idle behaviour
 }
 
 interface BirdGroup {
@@ -72,9 +74,11 @@ export class BirdSystem {
       const offsets: BirdOffset[] = [];
       for (let i = 0; i < count; i++) {
         offsets.push({
-          dx:    rng.range(-22, 22),
-          dy:    rng.range(-14, 14),
-          angle: rng.range(0, Math.PI * 2),
+          dx:       rng.range(-80, 80),
+          dy:       rng.range(-55, 55),
+          angle:    rng.range(0, Math.PI * 2),
+          phase:    rng.next(),
+          idleType: rng.next() < 0.55 ? 'peck' : 'look',
         });
       }
 
@@ -146,6 +150,7 @@ export class BirdSystem {
     camX: number, camY: number,
     W: number, H: number,
   ): void {
+    const t = performance.now() / 1000;
     ctx.save();
     for (const g of this.groups) {
       if (g.triggered) continue;
@@ -153,7 +158,23 @@ export class BirdSystem {
         const sx = (g.wx + off.dx) - camX + W * 0.5;
         const sy = camY - (g.wy + off.dy) + H * 0.5;
         if (sx < -40 || sx > W + 40 || sy < -40 || sy > H + 40) continue;
-        this.drawBird(ctx, sx, sy, off.angle, 1, 0,
+
+        // ── Idle animation ────────────────────────────────────────────────────
+        let animAngle = 0;
+        if (off.idleType === 'peck') {
+          // Brief tilt forward every ~2-3 s
+          const PECK_PERIOD = 2.2 + off.phase * 1.2;
+          const PECK_WINDOW = 0.32;
+          const tc = (t * (0.9 + off.phase * 0.2) + off.phase * PECK_PERIOD) % PECK_PERIOD;
+          const peckT = tc < PECK_WINDOW ? Math.sin((tc / PECK_WINDOW) * Math.PI) : 0;
+          animAngle = peckT * 0.30;
+        } else {
+          // Slow look-around: sinusoidal rotation ±~20°
+          const speed = 0.45 + off.phase * 0.35;
+          animAngle = Math.sin(t * speed + off.phase * Math.PI * 2) * 0.36;
+        }
+
+        this.drawBird(ctx, sx, sy, off.angle + animAngle, 1, 0,
           SHADOW_DY_0, 0.32, SHADOW_BLUR_0);
       }
     }

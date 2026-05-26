@@ -208,17 +208,33 @@ export class Track {
       ry.push(scy(s.y - s.ny * s.halfWidth));
     }
 
-    // ── Road fill: per-segment quads with alternating stripes ─────────────────
-    // Each stripe pair spans STRIPE_LEN arc-length units.
+    // ── Road fill: base + alternating stripes, each as one continuous polygon ──
+    // Drawing per-quad causes sub-pixel anti-alias gaps at shared edges.
+    // Instead: fill the whole road once, then overlay every other stripe.
     const STRIPE_LEN = 65;
-    for (let i = 0; i < slice.length - 1; i++) {
-      const even = Math.floor(slice[i].dist / STRIPE_LEN) % 2 === 0;
-      ctx.fillStyle = even ? '#b4b2b0' : '#a9a7a5';
+
+    // 1. Full road shape in the lighter stripe colour
+    ctx.fillStyle = '#b4b2b0';
+    ctx.beginPath();
+    ctx.moveTo(lx[0], ly[0]);
+    for (let i = 1; i < slice.length; i++) ctx.lineTo(lx[i], ly[i]);
+    for (let i = slice.length - 1; i >= 0; i--) ctx.lineTo(rx[i], ry[i]);
+    ctx.closePath();
+    ctx.fill();
+
+    // 2. Darker stripes — collect consecutive same-parity segments → one polygon
+    ctx.fillStyle = '#a9a7a5';
+    let si = 0;
+    while (si < slice.length - 1) {
+      const parity = Math.floor(slice[si].dist / STRIPE_LEN) % 2;
+      if (parity === 0) { si++; continue; } // lighter → already covered by base
+      const start = si;
+      while (si < slice.length - 1 && Math.floor(slice[si].dist / STRIPE_LEN) % 2 === parity) si++;
+      const end = si;
       ctx.beginPath();
-      ctx.moveTo(lx[i], ly[i]);
-      ctx.lineTo(lx[i + 1], ly[i + 1]);
-      ctx.lineTo(rx[i + 1], ry[i + 1]);
-      ctx.lineTo(rx[i], ry[i]);
+      ctx.moveTo(lx[start], ly[start]);
+      for (let j = start + 1; j <= end; j++) ctx.lineTo(lx[j], ly[j]);
+      for (let j = end; j >= start; j--) ctx.lineTo(rx[j], ry[j]);
       ctx.closePath();
       ctx.fill();
     }
