@@ -10,8 +10,7 @@ import type { Obstacle } from './Obstacle';
 
 export type GameState = 'menu' | 'countdown' | 'race' | 'finish';
 
-const TARGET_W = 1280;
-const TARGET_H = 720;
+const TARGET_H = 720;  // fixed world height — width adapts to window
 const FIXED_DT = 1 / 60;  // 60 Hz physics tick
 const CAM_AHEAD = 180;      // world units camera looks ahead of car
 const PENALTY_SECONDS = 3;
@@ -119,11 +118,12 @@ export class Game {
   // ─── Sizing ────────────────────────────────────────────────────────────────
 
   private resize(): void {
-    const scale = Math.min(window.innerWidth / TARGET_W, window.innerHeight / TARGET_H);
-    this.canvas.width = TARGET_W;
+    // Scale only by height — road stays full-size, grass crops horizontally.
+    const scale = window.innerHeight / TARGET_H;
+    this.canvas.width  = Math.round(window.innerWidth / scale);
     this.canvas.height = TARGET_H;
-    this.canvas.style.width = `${TARGET_W * scale}px`;
-    this.canvas.style.height = `${TARGET_H * scale}px`;
+    this.canvas.style.width  = `${window.innerWidth}px`;
+    this.canvas.style.height = `${window.innerHeight}px`;
   }
 
   // ─── Loop ──────────────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ export class Game {
 
     // Birds update after camera so screen positions are correct for this frame
     this.birds.update(dt, this.car.worldX, this.car.worldY,
-      this.camX, this.camY, TARGET_W, TARGET_H);
+      this.camX, this.camY, this.canvas.width, this.canvas.height);
   }
 
   private triggerCrash(): void {

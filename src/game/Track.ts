@@ -263,8 +263,8 @@ export class Track {
     this.renderBales(ctx, camX, camY, W, H);
 
     // ── Start & finish lines ──────────────────────────────────────────────────
-    this.renderLine(ctx, camX, camY, W, H, 0, '#ffffff', 'START');
-    this.renderLine(ctx, camX, camY, W, H, this.finishDist, '#ffffff', 'ZIEL');
+    this.renderLine(ctx, camX, camY, W, H, 0);
+    this.renderLine(ctx, camX, camY, W, H, this.finishDist);
   }
 
   private renderDash(
@@ -285,12 +285,9 @@ export class Track {
     camX: number, camY: number,
     W: number, H: number,
     dist: number,
-    color: string,
-    label: string,
   ): void {
     const s = this.getSampleAtDist(dist);
     // Y flipped
-    const cx = s.x - camX + W * 0.5;
     const cy = camY - s.y + H * 0.5;
     if (cy < -80 || cy > H + 80) return;
 
@@ -300,19 +297,13 @@ export class Track {
     const rx = (s.x - s.nx * s.halfWidth) - camX + W * 0.5;
     const ry = camY - (s.y - s.ny * s.halfWidth) + H * 0.5;
 
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 10;
     ctx.beginPath();
     ctx.moveTo(lx, ly);
     ctx.lineTo(rx, ry);
     ctx.stroke();
 
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.font = '700 15px "Open Sans", sans-serif';
-    ctx.fillStyle = '#111111';
-    ctx.fillText(label, cx, cy - 14);
-    ctx.restore();
   }
 
   private renderBales(
