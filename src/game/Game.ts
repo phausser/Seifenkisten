@@ -5,6 +5,7 @@ import { placeObstacles, renderObstacle } from './Obstacle';
 import { ParticleSystem } from './ParticleSystem';
 import { AudioSystem } from './AudioSystem';
 import { BirdSystem } from './BirdSystem';
+import { FlowerSystem } from './FlowerSystem';
 import type { Obstacle } from './Obstacle';
 
 export type GameState = 'menu' | 'countdown' | 'race' | 'finish';
@@ -42,7 +43,8 @@ export class Game {
   private obstacles: Obstacle[] = [];
   private particles = new ParticleSystem();
   private audio = new AudioSystem();
-  private birds = new BirdSystem();
+  private birds   = new BirdSystem();
+  private flowers = new FlowerSystem();
 
   // Camera (world coordinates of screen centre)
   private camX = 0;
@@ -93,6 +95,7 @@ export class Game {
     this.car = new Car(this.track);
     this.obstacles = placeObstacles(this.track, 0xA5C3);
     this.birds.place(this.track, 0xB1D5);
+    this.flowers.place(this.track, 0xD4F2);
     this.particles.clear();
     this.shakeAmt = 0;
     this.crashPopup = 0;
@@ -519,6 +522,9 @@ export class Game {
         (Math.random() - 0.5) * 2 * this.shakeAmt,
       );
     }
+
+    // ── Flowers (on grass, beneath road) ─────────────────────────────────────
+    this.flowers.render(ctx, this.camX, this.camY, W, H);
 
     // ── Track (road + borders + bales + start/finish) ─────────────────────────
     this.track.render(ctx, this.camX, this.camY, W, H);
