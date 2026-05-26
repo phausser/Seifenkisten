@@ -29,8 +29,11 @@ const ROAD_DRAG = 0.62;   // terminal ≈ 387 u/s
 /** Much higher drag off-road so the car slows noticeably on grass. */
 const GRASS_DRAG = 3.2;    // terminal ≈  75 u/s
 
-/** Lateral velocity is killed this fraction per second on road (high = grippy). */
-const LATERAL_GRIP = 4.2;
+/** Lateral grip at standstill – high = very grippy. */
+const LATERAL_GRIP = 8.0;
+
+/** How quickly grip fades with speed.  grip = LATERAL_GRIP / (1 + v · k). */
+const DRIFT_SPEED_FACTOR = 0.009;
 
 /** Reduced grip on grass – the car slides more. */
 const GRASS_LATERAL_GRIP = 1.2;
@@ -118,7 +121,10 @@ export class Car {
     const s = track.getSampleAtDist(this.dist);
     const onRoad = Math.abs(this.lateralOffset) < s.halfWidth - CAR_RADIUS * 0.5;
     const drag = onRoad ? ROAD_DRAG : GRASS_DRAG;
-    const grip = onRoad ? LATERAL_GRIP : GRASS_LATERAL_GRIP;
+    // Grip falls with speed so the car drifts outward at high speed in corners
+    const curSpeed = Math.hypot(this.vx, this.vy);
+    const driftGrip = LATERAL_GRIP / (1 + curSpeed * DRIFT_SPEED_FACTOR);
+    const grip = onRoad ? driftGrip : GRASS_LATERAL_GRIP;
 
     // ── Car heading directions ─────────────────────────────────────────────────
     const fwdX = Math.sin(this.angle);   // forward X
