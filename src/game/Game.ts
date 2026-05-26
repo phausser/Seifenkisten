@@ -7,7 +7,7 @@ import { AudioSystem } from './AudioSystem';
 import { BirdSystem } from './BirdSystem';
 import type { Obstacle } from './Obstacle';
 
-export type GameState = 'menu' | 'countdown' | 'race' | 'finish' | 'highscores';
+export type GameState = 'menu' | 'countdown' | 'race' | 'finish';
 
 const TARGET_W = 1280;
 const TARGET_H = 720;
@@ -158,7 +158,6 @@ export class Game {
       case 'countdown': this.updateCountdown(dt); break;
       case 'race': this.updateRace(dt); break;
       case 'finish': this.updateFinish(dt); break;
-      case 'highscores': this.updateHighScores(dt); break;
     }
   }
 
@@ -168,9 +167,6 @@ export class Game {
       this.initRace();
       this.setState('countdown');
       this.audio.start();
-    }
-    if (this.input.wasPressed('KeyH')) {
-      this.setState('highscores');
     }
   }
 
@@ -303,20 +299,6 @@ export class Game {
     if (this.input.wasPressed('Escape')) {
       this.setState('menu');
     }
-    if (this.input.wasPressed('KeyH')) {
-      this.setState('highscores');
-    }
-  }
-
-  private updateHighScores(_dt: number): void {
-    if (
-      this.input.wasPressed('Escape') ||
-      this.input.wasPressed('Space') ||
-      this.input.wasPressed('Enter') ||
-      this.input.wasTouchPressed
-    ) {
-      this.setState('menu');
-    }
   }
 
   private setState(next: GameState): void {
@@ -418,7 +400,6 @@ export class Game {
       case 'countdown': this.renderCountdown(); break;
       case 'race': this.renderRace(); break;
       case 'finish': this.renderFinish(); break;
-      case 'highscores': this.renderHighScores(); break;
     }
 
     this.renderHUD();
@@ -428,40 +409,72 @@ export class Game {
 
   private renderMenu(): void {
     const { ctx, canvas } = this;
-    const cx = canvas.width * 0.5;
-    const cy = canvas.height * 0.5;
+    const W = canvas.width, H = canvas.height;
+    const cx = W * 0.5;
 
     ctx.save();
     ctx.textAlign = 'center';
 
-    ctx.font = '800 76px "Open Sans", sans-serif';
+    // ── Title ──────────────────────────────────────────────────────────────────
+    ctx.font = '800 72px "Open Sans", sans-serif';
     ctx.fillStyle = '#111111';
-    ctx.fillText('SEIFENKISTEN RENNEN', cx, cy - 70);
-
-    ctx.font = '700 30px "Open Sans", sans-serif';
-    ctx.fillStyle = '#555550';
-    ctx.fillText('TIME DRIFT', cx, cy - 26);
+    ctx.fillText('SEIFENKISTEN RENNEN', cx, 82);
 
     ctx.strokeStyle = '#111111';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(cx - 200, cy + 4);
-    ctx.lineTo(cx + 200, cy + 4);
+    ctx.moveTo(cx - 260, 100);
+    ctx.lineTo(cx + 260, 100);
     ctx.stroke();
 
+    // ── Highscores ─────────────────────────────────────────────────────────────
+    ctx.font = '700 15px "Open Sans", sans-serif';
+    ctx.fillStyle = '#888880';
+    ctx.fillText('BESTZEITEN', cx, 130);
+
+    if (this.highScores.length === 0) {
+      ctx.font = '400 20px "Open Sans", sans-serif';
+      ctx.fillStyle = '#888880';
+      ctx.fillText('Noch keine Zeiten gespeichert.', cx, 280);
+    } else {
+      const rowH = 42;
+      const top = 172;
+      for (let i = 0; i < this.highScores.length; i++) {
+        const score = this.highScores[i];
+        const y = top + i * rowH;
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(17,17,17,0.06)' : 'rgba(17,17,17,0.025)';
+        ctx.fillRect(cx - 240, y - 26, 480, 34);
+        ctx.textAlign = 'left';
+        ctx.font = '700 22px "Open Sans", sans-serif';
+        ctx.fillStyle = '#111111';
+        ctx.fillText(`${String(i + 1).padStart(2, '0')}.`, cx - 220, y);
+        ctx.fillText(score.name, cx - 158, y);
+        ctx.textAlign = 'right';
+        ctx.fillText(this.formatTime(score.time), cx + 220, y);
+        ctx.textAlign = 'center';
+      }
+    }
+
+    ctx.strokeStyle = '#111111';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 260, 385);
+    ctx.lineTo(cx + 260, 385);
+    ctx.stroke();
+
+    // ── Start button ───────────────────────────────────────────────────────────
     const btnW = 340, btnH = 52;
     ctx.fillStyle = '#111111';
     ctx.beginPath();
-    ctx.roundRect(cx - btnW / 2, cy + 24, btnW, btnH, 6);
+    ctx.roundRect(cx - btnW / 2, 404, btnW, btnH, 6);
     ctx.fill();
     ctx.font = '700 22px "Open Sans", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('SPACE · ENTER — Start', cx, cy + 58);
+    ctx.fillText('SPACE · ENTER — Start', cx, 438);
 
-    ctx.font = '400 16px "Open Sans", sans-serif';
+    ctx.font = '400 15px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
-    ctx.fillText('Steuerung: ← → oder A D · Bremse: ↓ oder S', cx, cy + 118);
-    ctx.fillText('H — Bestzeiten', cx, cy + 144);
+    ctx.fillText('Steuerung: ← → oder A D · Bremse: ↓ oder S', cx, H - 30);
 
     ctx.restore();
   }
@@ -718,7 +731,7 @@ export class Game {
 
     ctx.font = '400 15px "Open Sans", sans-serif';
     ctx.fillStyle = '#555550';
-    ctx.fillText('H — Bestzeiten · ESC — Menü', cx, cy + 148);
+    ctx.fillText('ESC — Menü', cx, cy + 148);
 
     ctx.restore();
   }
@@ -762,50 +775,6 @@ export class Game {
       }
     }
 
-    ctx.restore();
-  }
-
-  private renderHighScores(): void {
-    const { ctx, canvas } = this;
-    const W = canvas.width, H = canvas.height;
-    const cx = W * 0.5;
-    const top = 120;
-
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.font = '800 56px "Open Sans", sans-serif';
-    ctx.fillStyle = '#111111';
-    ctx.fillText('BESTZEITEN', cx, top);
-
-    ctx.font = '700 18px "Open Sans", sans-serif';
-    ctx.fillStyle = '#555550';
-    ctx.fillText('Top 5', cx, top + 34);
-
-    if (this.highScores.length === 0) {
-      ctx.font = '400 22px "Open Sans", sans-serif';
-      ctx.fillStyle = '#555550';
-      ctx.fillText('Noch keine Zeiten gespeichert.', cx, top + 150);
-    } else {
-      ctx.textAlign = 'left';
-      ctx.font = '700 22px "Open Sans", sans-serif';
-      for (let i = 0; i < this.highScores.length; i++) {
-        const score = this.highScores[i];
-        const y = top + 92 + i * 38;
-        ctx.fillStyle = i % 2 === 0 ? 'rgba(17,17,17,0.06)' : 'rgba(17,17,17,0.025)';
-        ctx.fillRect(cx - 230, y - 25, 460, 32);
-        ctx.fillStyle = '#111111';
-        ctx.fillText(`${String(i + 1).padStart(2, '0')}.`, cx - 210, y);
-        ctx.fillText(score.name, cx - 150, y);
-        ctx.textAlign = 'right';
-        ctx.fillText(this.formatTime(score.time), cx + 210, y);
-        ctx.textAlign = 'left';
-      }
-    }
-
-    ctx.textAlign = 'center';
-    ctx.font = '400 16px "Open Sans", sans-serif';
-    ctx.fillStyle = '#555550';
-    ctx.fillText('SPACE · ENTER · ESC — Menü', cx, H - 58);
     ctx.restore();
   }
 
