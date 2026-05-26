@@ -49,21 +49,24 @@ export class AudioSystem {
       const audio = this.getContext();
       if (audio.state !== 'running') return;
 
-      // Lazy init: looping bandpass-filtered noise node graph
+      // Lazy init: looping noise → very high-Q bandpass → gain.
+      // A Q of ~35 makes the bandpass so resonant it "rings" at one frequency,
+      // turning noise into a harsh, gritty squeal — neither wind nor whistle.
       if (!this.squealGain) {
-        const SR = audio.sampleRate;
-        const buf = audio.createBuffer(1, SR * 0.2, SR);
-        const data = buf.getChannelData(0);
-        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        const SR  = audio.sampleRate;
+        const buf = audio.createBuffer(1, SR * 0.3, SR);
+        const d   = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
 
         const src = audio.createBufferSource();
         src.buffer = buf;
-        src.loop = true;
+        src.loop   = true;
 
+        // Very high Q: noise becomes a harsh resonant screech
         this.squealFilter = audio.createBiquadFilter();
-        this.squealFilter.type = 'bandpass';
-        this.squealFilter.frequency.value = 850;
-        this.squealFilter.Q.value = 8;
+        this.squealFilter.type            = 'bandpass';
+        this.squealFilter.frequency.value = 700;
+        this.squealFilter.Q.value         = 35;
 
         this.squealGain = audio.createGain();
         this.squealGain.gain.value = 0;
@@ -74,15 +77,14 @@ export class AudioSystem {
         src.start();
       }
 
-      // Smooth gain ramp (τ = 60 ms)
-      const target = Math.min(1, intensity) * 0.18;
+      // Keep volume low — this texture carries even at low gain
+      const target = Math.min(1, intensity) * 0.09;
       this.squealGain.gain.setTargetAtTime(target, audio.currentTime, 0.06);
 
-      // Pitch rises with drift intensity
+      // Frequency creeps up as the drift intensifies (700 → 1 000 Hz)
       if (intensity > 0 && this.squealFilter) {
         this.squealFilter.frequency.setTargetAtTime(
-          750 + intensity * 300,
-          audio.currentTime, 0.1,
+          700 + intensity * 300, audio.currentTime, 0.12,
         );
       }
     } catch {

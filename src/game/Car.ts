@@ -8,7 +8,6 @@ const AXLE_W = 52;
 const AXLE_H = 5;
 const TIRE_W = 5;
 const TIRE_H = 22;
-const TIRE_R = 3;
 const SHADOW_COLOR = 'rgba(0,0,0,0.50)';
 const SHADOW_BLUR = 10;
 
@@ -87,6 +86,9 @@ export class Car {
   // Track-relative (derived each tick)
   dist = 0;
   lateralOffset = 0;
+
+  /** Accumulated forward distance for tire rotation animation (world units). */
+  tirePhase = 0;
 
   /** Seconds remaining in post-crash freeze. */
   frozen = 0;
@@ -169,6 +171,9 @@ export class Car {
     this.angularVel -= steer * steerRate * dt;
     this.angularVel *= Math.exp(-ANG_DAMP * dt);
     this.angle += this.angularVel * dt;
+
+    // ── Tire phase — accumulate forward distance for tread animation ──────────
+    this.tirePhase += Math.max(0, fwdSpeed) * dt;
 
     // ── Integrate position ────────────────────────────────────────────────────
     this.worldX += this.vx * dt;
@@ -288,7 +293,7 @@ export class Car {
     // With Y flipped, the canvas draw angle must be mirrored so the car
     // faces the direction of travel (upward on screen).
     ctx.rotate(Math.PI - this.angle);
-    Car.drawShape(ctx);
+    Car.drawShape(ctx, this.tirePhase);
     ctx.restore();
   }
 
@@ -296,7 +301,7 @@ export class Car {
    * Draw the soapbox car at local origin, front pointing in −Y direction.
    * Static so a ghost car can reuse the same shape.
    */
-  static drawShape(ctx: CanvasRenderingContext2D): void {
+  static drawShape(ctx: CanvasRenderingContext2D, tirePhase = 0): void {
     const tireOffX = AXLE_W / 2 - TIRE_W / 2;
 
     // Shadow under body
@@ -319,8 +324,8 @@ export class Car {
     ctx.roundRect(-BODY_W / 2, -BODY_H / 2, BODY_W, BODY_H, BODY_W / 2);
     ctx.fill();
 
-    // Rear circular highlight.
-    ctx.fillStyle = '#f04a3f';
+    // Rear circular detail.
+    ctx.fillStyle = '#111111';
     ctx.beginPath();
     ctx.arc(0, BODY_H * 0.24, BODY_W * 0.30, 0, Math.PI * 2);
     ctx.fill();
@@ -357,13 +362,32 @@ export class Car {
     );
     ctx.fill();
 
-    // Tires
-    ctx.fillStyle = '#111111';
+    // Tires — top-down with rolling tread stripes
+    const STRIPE_PERIOD = 7;   // world units between stripe centres
+    const STRIPE_THICK  = 2.5; // stripe thickness
+    const offset = tirePhase % STRIPE_PERIOD;
+
     for (const ay of [REAR_Y, FRONT_Y]) {
       for (const side of [-1, 1]) {
+        const tx = side * tireOffX - TIRE_W / 2;
+        const ty = ay - TIRE_H / 2;
+
+        ctx.save();
         ctx.beginPath();
-        ctx.roundRect(side * tireOffX - TIRE_W / 2, ay - TIRE_H / 2, TIRE_W, TIRE_H, TIRE_R);
-        ctx.fill();
+        ctx.rect(tx, ty, TIRE_W, TIRE_H);
+        ctx.clip();
+
+        // Base rubber
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(tx, ty, TIRE_W, TIRE_H);
+
+        // Tread stripes scrolling along Y (forward direction in local coords)
+        ctx.fillStyle = '#3d3d3d';
+        for (let y = ty - STRIPE_PERIOD + offset; y < ty + TIRE_H + STRIPE_PERIOD; y += STRIPE_PERIOD) {
+          ctx.fillRect(tx, y, TIRE_W, STRIPE_THICK);
+        }
+
+        ctx.restore();
       }
     }
   }
