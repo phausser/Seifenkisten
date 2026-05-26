@@ -319,6 +319,38 @@ export class Car {
     ctx.arc(0, BODY_H * 0.24, BODY_W * 0.30, 0, Math.PI * 2);
     ctx.fill();
 
+    // ── 3-D shading: right + bottom edges darker ─────────────────────────────
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(-BODY_W / 2, -BODY_H / 2, BODY_W, BODY_H, BODY_W / 2);
+    ctx.clip();
+
+    // Right edge
+    const rg = ctx.createLinearGradient(BODY_W * 0.05, 0, BODY_W / 2, 0);
+    rg.addColorStop(0, 'rgba(0,0,0,0)');
+    rg.addColorStop(1, 'rgba(0,0,0,0.28)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(-BODY_W / 2, -BODY_H / 2, BODY_W, BODY_H);
+
+    // Bottom (rear) edge
+    const bg = ctx.createLinearGradient(0, BODY_H * 0.05, 0, BODY_H / 2);
+    bg.addColorStop(0, 'rgba(0,0,0,0)');
+    bg.addColorStop(1, 'rgba(0,0,0,0.22)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(-BODY_W / 2, -BODY_H / 2, BODY_W, BODY_H);
+
+    ctx.restore();
+
+    // ── Glanzpunkt vorne links (~6 px vom Karosserierand) ───────────────────
+    ctx.fillStyle = 'rgba(255,255,255,0.70)';
+    ctx.beginPath();
+    ctx.ellipse(
+      -BODY_W / 2 + 7,   // 6–7 px vom linken Rand
+      -BODY_H / 2 + 7,   // 6–7 px vom vorderen (oberen) Rand
+      2.0, 1.3, -0.4, 0, Math.PI * 2,
+    );
+    ctx.fill();
+
     // Tires
     ctx.fillStyle = '#111111';
     for (const ay of [REAR_Y, FRONT_Y]) {

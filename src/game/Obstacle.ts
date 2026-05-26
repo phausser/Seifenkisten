@@ -1,4 +1,4 @@
-import { Rng, seededUnit } from '../utils/math';
+import { Rng } from '../utils/math';
 import type { Track } from './Track';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -7,10 +7,9 @@ const SHADOW_DX = 5;
 const SHADOW_DY = 6;
 const SHADOW_COLOR = 'rgba(0,0,0,0.50)';
 const SHADOW_BLUR = 10;
-const HAY_FILL = '#e0b23a';
+const HAY_LIGHT = '#b48420';
 const HAY_DARK = '#bc8d24';
-const HAY_LIGHT = '#f0cf66';
-const HAY_LINE_COUNT = 12;
+const HAY_GRID = 4;   // cells per side of the checkerboard
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,10 +88,12 @@ export function drawHayBale(
   bx: number, by: number,
   r: number,
   angle: number,
-  worldX: number, worldY: number,
+  _worldX: number, _worldY: number,
 ): void {
   const size = r * 1.65;
-  const radius = 5;
+  const corner = 5;
+  const half = size * 0.5;
+  const cell = size / HAY_GRID;
 
   // Shadow
   ctx.save();
@@ -101,7 +102,7 @@ export function drawHayBale(
   ctx.fillStyle = SHADOW_COLOR;
   ctx.filter = `blur(${SHADOW_BLUR}px)`;
   ctx.beginPath();
-  ctx.roundRect(-size * 0.5, -size * 0.5, size, size, radius);
+  ctx.roundRect(-half, -half, size, size, corner);
   ctx.fill();
   ctx.restore();
 
@@ -109,48 +110,20 @@ export function drawHayBale(
   ctx.translate(bx, by);
   ctx.rotate(angle);
 
-  // Body
-  ctx.fillStyle = HAY_FILL;
+  // Clip to rounded-rect outline
   ctx.beginPath();
-  ctx.roundRect(-size * 0.5, -size * 0.5, size, size, radius);
-  ctx.fill();
+  ctx.roundRect(-half, -half, size, size, corner);
+  ctx.clip();
 
-  // Binding
-  ctx.strokeStyle = HAY_DARK;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-size * 0.22, -size * 0.5); ctx.lineTo(-size * 0.22, size * 0.5);
-  ctx.moveTo(size * 0.22, -size * 0.5); ctx.lineTo(size * 0.22, size * 0.5);
-  ctx.stroke();
-
-  // Short straw strokes
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = HAY_LIGHT;
-  ctx.beginPath();
-  drawHayLines(ctx, size, worldX * 0.17 + worldY * 0.11);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawHayLines(
-  ctx: CanvasRenderingContext2D,
-  size: number,
-  seed: number,
-): void {
-  for (let i = 0; i < HAY_LINE_COUNT; i++) {
-    const xRand = seededUnit(seed, i * 4 + 1);
-    const yRand = seededUnit(seed, i * 4 + 2);
-    const aRand = seededUnit(seed, i * 4 + 3);
-    const lRand = seededUnit(seed, i * 4 + 4);
-    const x = (xRand - 0.5) * size * 0.68;
-    const y = (yRand - 0.5) * size * 0.68;
-    const angle = -0.45 + aRand * 0.9;
-    const len = size * (0.16 + lRand * 0.12);
-    const dx = Math.cos(angle) * len * 0.5;
-    const dy = Math.sin(angle) * len * 0.5;
-    ctx.moveTo(x - dx, y - dy);
-    ctx.lineTo(x + dx, y + dy);
+  // Checkerboard: HAY_GRID × HAY_GRID alternating light/dark squares
+  for (let row = 0; row < HAY_GRID; row++) {
+    for (let col = 0; col < HAY_GRID; col++) {
+      ctx.fillStyle = (row + col) % 2 === 0 ? HAY_LIGHT : HAY_DARK;
+      ctx.fillRect(-half + col * cell, -half + row * cell, cell, cell);
+    }
   }
+
+  ctx.restore();
 }
 
 function drawTire(

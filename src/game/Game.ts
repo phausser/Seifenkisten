@@ -19,6 +19,11 @@ const HIGHSCORE_KEY = 'seifenkisten.highscores.v1';
 const MAX_HIGHSCORES = 5;
 const RIPPLE_DURATION = 0.48;
 
+// Grass stripe colours — two subtly different greens, stripe = 2× road stripe
+const GRASS_STRIPE = 130;
+const GRASS_LIGHT  = '#427b3f';
+const GRASS_DARK   = '#386e35';
+
 interface HighScoreEntry {
   name: string;
   time: number;
@@ -510,9 +515,20 @@ export class Game {
     const { ctx, canvas } = this;
     const W = canvas.width, H = canvas.height;
 
-    // ── Grass background — drawn before shake so canvas edges stay covered ───
-    ctx.fillStyle = '#3e753b';
-    ctx.fillRect(0, 0, W, H);
+    // ── Grass stripes — horizontal world-Y bands, drawn before shake ──────────
+    // sy = camY − wy + H/2  →  stripe idx i covers world Y [i·S, (i+1)·S]
+    {
+      const S = GRASS_STRIPE;
+      const iTop = Math.floor((this.camY + H * 0.5) / S);
+      const iBot = Math.floor((this.camY - H * 0.5) / S);
+      for (let i = iTop; i >= iBot; i--) {
+        const syA = Math.max(0, Math.floor(this.camY - (i + 1) * S + H * 0.5));
+        const syB = Math.min(H, Math.floor(this.camY - i * S + H * 0.5));
+        if (syB <= syA) continue;
+        ctx.fillStyle = i % 2 === 0 ? GRASS_LIGHT : GRASS_DARK;
+        ctx.fillRect(0, syA, W, syB - syA);
+      }
+    }
 
     // ── Screen shake: translate world, restore before HUD overlays ────────────
     ctx.save();
