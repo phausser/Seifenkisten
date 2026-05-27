@@ -2,9 +2,9 @@ import type { Track } from './Track';
 
 // ─── Geometry constants (world units, local origin) ───────────────────────────
 
-const BODY_W = 24;
+const BODY_W = 18;
 const BODY_H = 66;
-const AXLE_W = 52;
+const AXLE_W = 44;
 const AXLE_H = 5;
 const TIRE_W = 5;
 const TIRE_H = 22;
@@ -304,12 +304,34 @@ export class Car {
   static drawShape(ctx: CanvasRenderingContext2D, tirePhase = 0): void {
     const tireOffX = AXLE_W / 2 - TIRE_W / 2;
 
+    // Soapbox body path: small rounded nose at front (−Y), rounded rear.
+    const bodyPath = (): void => {
+      const hw       = BODY_W / 2;
+      const hh       = BODY_H / 2;
+      const noseR    = 4;           // nose tip radius
+      const noseCY   = -hh + noseR; // centre of nose arc
+      const noseBase = -hh + 16;    // y where full width begins
+      const rearR    = 8;           // rear corner radius
+
+      ctx.beginPath();
+      // Nose arc: left point → tip (−Y) → right point, perfectly centred on x=0
+      ctx.arc(0, noseCY, noseR, Math.PI, 0);
+      ctx.lineTo( hw, noseBase);                             // right shoulder
+      ctx.lineTo( hw,  hh - rearR);                          // right side
+      ctx.arcTo(  hw,  hh,  hw - rearR,  hh, rearR);        // rear-right corner
+      ctx.lineTo(-hw + rearR, hh);                           // rear bottom
+      ctx.arcTo( -hw,  hh, -hw,  hh - rearR, rearR);        // rear-left corner
+      ctx.lineTo(-hw, noseBase);                             // left side
+      ctx.lineTo(-noseR, noseCY);                            // approach nose arc
+      ctx.closePath();
+    };
+
     // Shadow under body
     ctx.save();
     ctx.fillStyle = SHADOW_COLOR;
     ctx.filter = `blur(${SHADOW_BLUR}px)`;
-    ctx.beginPath();
-    ctx.roundRect(-BODY_W / 2 + 5, -BODY_H / 2 + 6, BODY_W, BODY_H, BODY_W / 2);
+    ctx.translate(5, 6);
+    bodyPath();
     ctx.fill();
     ctx.restore();
 
@@ -318,10 +340,9 @@ export class Car {
     ctx.fillRect(-AXLE_W / 2, REAR_Y - AXLE_H / 2, AXLE_W, AXLE_H);
     ctx.fillRect(-AXLE_W / 2, FRONT_Y - AXLE_H / 2, AXLE_W, AXLE_H);
 
-    // Body: slim soapbox shape with rounded front.
+    // Body fill
     ctx.fillStyle = '#e63030';
-    ctx.beginPath();
-    ctx.roundRect(-BODY_W / 2, -BODY_H / 2, BODY_W, BODY_H, BODY_W / 2);
+    bodyPath();
     ctx.fill();
 
     // Rear circular detail.
@@ -332,8 +353,7 @@ export class Car {
 
     // ── 3-D shading: right + bottom edges darker ─────────────────────────────
     ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(-BODY_W / 2, -BODY_H / 2, BODY_W, BODY_H, BODY_W / 2);
+    bodyPath();
     ctx.clip();
 
     // Right edge
@@ -352,12 +372,12 @@ export class Car {
 
     ctx.restore();
 
-    // ── Glanzpunkt vorne links (~6 px vom Karosserierand) ───────────────────
+    // ── Glanzpunkt nahe der Nasenspitze, leicht links ──────────────────────
     ctx.fillStyle = 'rgba(255,255,255,0.70)';
     ctx.beginPath();
     ctx.ellipse(
-      -BODY_W / 2 + 7,   // 6–7 px vom linken Rand
-      -BODY_H / 2 + 7,   // 6–7 px vom vorderen (oberen) Rand
+      -2,                  // leicht links der Mittellinie
+      -BODY_H / 2 + 4,    // nahe der Nasenspitze
       2.0, 1.3, -0.4, 0, Math.PI * 2,
     );
     ctx.fill();
