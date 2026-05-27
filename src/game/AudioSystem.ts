@@ -8,9 +8,42 @@ export class AudioSystem {
   private squealGain:   GainNode | null = null;
   private squealFilter: BiquadFilterNode | null = null;
 
+  // Preloaded drive-start MP3
+  private driveBuffer: AudioBuffer | null = null;
+  private driveLoadPromise: Promise<void> | null = null;
+
   resume(): void {
     const audio = this.getContext();
     if (audio.state !== 'running') void audio.resume();
+    this.preloadDrive();
+  }
+
+  private preloadDrive(): void {
+    if (this.driveBuffer || this.driveLoadPromise || !this.enabled) return;
+    this.driveLoadPromise = (async () => {
+      try {
+        const res = await fetch('sounds/Soapbox-Riot-Run.mp3');
+        const buf = await res.arrayBuffer();
+        const audio = this.getContext();
+        this.driveBuffer = await audio.decodeAudioData(buf);
+      } catch {
+        // Sound nicht verfügbar — Spiel läuft trotzdem
+      }
+    })();
+  }
+
+  driveStart(): void {
+    if (!this.enabled || !this.driveBuffer) return;
+    try {
+      const audio = this.getContext();
+      if (audio.state !== 'running') return;
+      const src = audio.createBufferSource();
+      src.buffer = this.driveBuffer;
+      src.connect(audio.destination);
+      src.start();
+    } catch {
+      this.enabled = false;
+    }
   }
 
   start(): void {

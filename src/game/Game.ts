@@ -190,6 +190,7 @@ export class Game {
       this.audio.countdown();
     }
     if (this.countdownTime <= 0) {
+      this.audio.driveStart();
       this.setState('race');
     }
   }
