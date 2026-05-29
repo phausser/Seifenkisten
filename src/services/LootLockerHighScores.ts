@@ -90,10 +90,10 @@ async function createSession(): Promise<LootLockerSession | null> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': getApiKey(),
     },
     body: JSON.stringify({
-      device_id: getDeviceId(),
+      game_key: getApiKey(),
+      player_identifier: getDeviceId(),
       game_version: import.meta.env.VITE_LOOTLOCKER_GAME_VERSION || '0.1.0',
     }),
   });
