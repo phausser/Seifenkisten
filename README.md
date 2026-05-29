@@ -1,31 +1,24 @@
-# Seifenkisten Rennen: Time Drift
+# Seifenkisten Rennen
 
-Ein 2D Top-Down Seifenkisten-Rennspiel mit Zeit-Reise-Thema — gebaut mit HTML5 Canvas und TypeScript.
+Ein 2D Top-Down Seifenkisten-Rennspiel — gebaut mit HTML5 Canvas und TypeScript.
 
-## Spielprinzip
-Steure deine Seifenkiste einen prozedural generierten Hang hinunter, weiche Hindernissen aus und erreiche das Ziel so schnell wie möglich. Kollisionen kosten 3 Sekunden. Bestzeiten werden über LootLocker synchronisiert und lokal zwischengespeichert.
+## Spielidee
 
-## Quickstart
+Steure deine Seifenkiste einen prozedural generierten Hang hinunter, weiche Heuballen und Reifen aus und erreiche das Ziel so schnell wie möglich. Bestzeiten werden über eine Online-Bestenliste gespeichert.
+
+## Installation
 
 ```bash
 npm install
-npm run dev
-# → http://localhost:5173
+npm run dev       # → http://localhost:5173
+npm run build     # Produktions-Build nach dist/
 ```
 
-Optional kann LootLocker über eine `.env.local` konfiguriert werden:
+LootLocker-Bestenliste (optional): `.env.local` anlegen:
 
-```bash
+```
 VITE_LOOTLOCKER_API_KEY=dein_api_key
 VITE_LOOTLOCKER_LEADERBOARD_KEY=dein_leaderboard_key
-# optional:
-# VITE_LOOTLOCKER_API_BASE=https://api.lootlocker.io/game
-# VITE_LOOTLOCKER_GAME_VERSION=0.1.0
-```
-
-```bash
-npm run build    # Produktions-Build nach dist/
-npm run preview  # Build lokal testen
 ```
 
 ## Steuerung
@@ -35,56 +28,17 @@ npm run preview  # Build lokal testen
 | ← / A | Lenken links |
 | → / D | Lenken rechts |
 | ↓ / S | Bremsen |
-| SPACE / ENTER | Menü bestätigen |
+| Space / Enter | Bestätigen |
 | ESC | Zurück zum Menü |
 
-## Projektstruktur
+## Lizenz
 
-```
-src/
-  main.ts              # Einstiegspunkt
-  game/
-    Game.ts            # Game Loop + State Machine
-    Car.ts             # Fahrzeugphysik + Fahrzeug-Rendering
-    Track.ts           # Prozedurale Strecke + Rand-Heuballen
-    Obstacle.ts        # Hindernisse (Phase 4)
-    ParticleSystem.ts  # Staubpartikel
-    AudioSystem.ts     # Web-Audio-Soundeffekte
-  ui/                  # Menü, HUD, Highscores (Phase 6–7)
-  utils/
-    InputHandler.ts    # Keyboard State
-```
+MIT License
 
-## Entwicklungsstand
+Copyright (c) 2025 phausser
 
-| Phase | Status | Inhalt |
-|-------|--------|--------|
-| 0 – Setup | ✅ | Projektdateien, Specs |
-| 1 – Grundgerüst | ✅ | Vite, Canvas, Game Loop, Input, State Machine |
-| 2 – Physik | ✅ | Car, Gravity, Lenkung, Trägheit |
-| 3 – Strecke | ✅ | Catmull-Rom Spline, Heuballen, Start/Ziel, Kamera |
-| 4 – Kollisionen | ✅ | Hindernisse, Kollision, Flash, Zeitstrafe, Schatten |
-| 5 – Rendering | ✅ | Top-down Road, Heuballen-Polish, Staub, Speed Lines |
-| 6 – Game Systems | ✅ | Timer, Progress, Countdown, Highscores |
-| 7 – Polish | ✅ | Sound, UI, Mobile, Ripple, Performance |
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-## Aktueller Look
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-- Sattes Rasengruen (`#2fb51d`)
-- Feste Top-down-Strasse ohne Randlinien und ohne Object-Scaling
-- Quadratische Heuballen mit abgerundeten Ecken, Heumuster und unregelmaessiger Rotation
-- Rand-Heuballen stehen dicht am Fahrbahnrand und folgen der Strassenkante
-- Dunkle, weichgezeichnete Schatten per Canvas-Filter
-- Schlanke rote Seifenkiste mit roten Achsen und schwarzen Reifen
-- Sparsame staubfarbene Partikel hinter dem Auto
-- Start-Countdown, Race-Timer, Fortschrittsleiste und LootLocker-Bestzeiten mit LocalStorage-Fallback
-- Web-Audio-Soundeffekte, Crash-Ripple und Touch-Steuerung
-
-## Tech Stack
-- **TypeScript** (strict mode)
-- **HTML5 Canvas** (2D context, kein Game-Engine)
-- **Vite 5** (Dev-Server + Build)
-- Keine externen Runtime-Dependencies
-
-## Ziel
-~800–1500 LOC, 60 FPS, süchtig machender „noch eine Runde"-Faktor.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

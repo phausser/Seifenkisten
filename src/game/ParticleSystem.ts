@@ -86,7 +86,7 @@ export class ParticleSystem {
       const r  = p.size * (0.75 + 0.45 * (1 - t));
 
       ctx.globalAlpha = t * p.alpha;
-      ctx.fillStyle = '#9b7a4a';
+      ctx.fillStyle = '#e63030';
       ctx.beginPath();
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.fill();
