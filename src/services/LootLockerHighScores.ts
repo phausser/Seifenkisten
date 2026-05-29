@@ -218,7 +218,20 @@ export async function loadRemoteHighScores(count: number): Promise<HighScoreEntr
 
     if (response.status === 401 || response.status === 403) {
       clearStoredSession();
-      return null;
+      const fresh = await ensureSession(true);
+      if (!fresh) return null;
+      const retry = await fetch(
+        `${getApiBase()}/leaderboards/${getLeaderboardKey()}/list?count=${count}`,
+        { headers: { 'x-session-token': fresh.sessionToken } },
+      );
+      if (!retry.ok) return null;
+      const retryData = await retry.json() as { items?: LootLockerLeaderboardItem[] };
+      if (!Array.isArray(retryData.items)) return [];
+      return sortEntries(
+        retryData.items
+          .map((item) => parseEntry(item))
+          .filter((entry): entry is HighScoreEntry => entry !== null),
+      ).slice(0, count);
     }
     if (!response.ok) return null;
 
