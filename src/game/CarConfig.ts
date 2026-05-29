@@ -34,10 +34,16 @@ export const CAR_COLORS: ReadonlyArray<{ readonly label: string; readonly hex: s
   { label: 'WEISS',   hex: '#f0ece0' },
 ];
 
+/**
+ * Default setup reproduces the original hard-coded physics constants:
+ *   gravity=240, roadDrag=0.62, lateralGrip=8.0, steerAccel=11.0,
+ *   angDamp=10.0, brakeForce=520, initSpeed=90, driftSpeedFactor=0.009
+ * Values are the mean inverse-lerp across all constants for each axis.
+ */
 export const DEFAULT_SETUP: CarSetup = {
-  weight:     0.5,
-  steering:   0.5,
-  aero:       0.5,
+  weight:     0.46,   // gravity≈0.462, grip=0.5, drift=0.375, brake≈0.471, init=0.5
+  steering:   0.49,   // steerAccel≈0.444, angDamp≈0.533
+  aero:       0.54,   // roadDrag≈0.538
   colorIndex: 0,
 };
 
