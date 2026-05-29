@@ -87,6 +87,12 @@ export class Game {
     this.initRace();   // pre-generate track so it's ready on first start
     this.resize();
     window.addEventListener('resize', () => this.resize());
+
+    // Ensure the canvas always has keyboard focus on macOS/Chrome
+    canvas.setAttribute('tabindex', '0');
+    canvas.focus();
+    window.addEventListener('click', () => canvas.focus());
+    window.addEventListener('pointerdown', () => canvas.focus());
   }
 
   // ─── Init ──────────────────────────────────────────────────────────────────
@@ -147,11 +153,11 @@ export class Game {
     this.accumulator += rawDt;
     while (this.accumulator >= FIXED_DT) {
       this.update(FIXED_DT);
+      this.input.flush();
       this.accumulator -= FIXED_DT;
     }
 
     this.render();
-    this.input.flush();
     requestAnimationFrame((t) => this.loop(t));
   }
 
