@@ -7,6 +7,11 @@ import { AudioSystem } from './AudioSystem';
 import { BirdSystem } from './BirdSystem';
 import { FlowerSystem } from './FlowerSystem';
 import type { Obstacle } from './Obstacle';
+import {
+  loadRemoteHighScores,
+  saveRemoteHighScore,
+  type HighScoreEntry,
+} from '../services/LootLockerHighScores';
 
 export type GameState = 'menu' | 'countdown' | 'race' | 'finish';
 
@@ -22,12 +27,6 @@ const RIPPLE_DURATION = 0.48;
 const GRASS_STRIPE = 130;
 const GRASS_LIGHT  = '#427b3f';
 const GRASS_DARK   = '#386e35';
-
-interface HighScoreEntry {
-  name: string;
-  time: number;
-  date: string;
-}
 
 /**
  * Core game loop and state machine.
@@ -85,6 +84,7 @@ export class Game {
     this.input = new InputHandler();
     this.input.attachTouchTarget(canvas);
     this.highScores = this.loadHighScores();
+    void this.refreshHighScores();
 
     this.initRace();   // pre-generate track so it's ready on first start
     this.resize();
@@ -343,37 +343,62 @@ export class Game {
 
   private commitPendingHighScore(): void {
     if (this.pendingHighScoreRank === null) return;
-    const name = (this.pendingName || '---').slice(0, 3).toUpperCase();
-    this.highScores.push({
-      name,
+    const entry = {
+      name: (this.pendingName || '---').slice(0, 3).toUpperCase(),
       time: this.finishTime,
       date: new Date().toISOString(),
-    });
+    };
+    this.highScores.push(entry);
     this.highScores.sort((a, b) => a.time - b.time);
     this.highScores = this.highScores.slice(0, MAX_HIGHSCORES);
     this.saveHighScores();
+    void this.syncHighScores(entry);
     this.pendingHighScoreRank = null;
     this.audio.save();
   }
 
-  private getHighScoreRank(time: number): number | null {
-    const rank = this.highScores.findIndex((score) => time < score.time);
-    if (rank >= 0) return rank;
-    return this.highScores.length < MAX_HIGHSCORES ? this.highScores.length : null;
+  private async refreshHighScores(): Promise<void> {
+    const remoteScores = await loadRemoteHighScores(MAX_HIGHSCORES);
+    if (!remoteScores) return;
+    this.highScores = remoteScores;
+    this.saveHighScores();
+  }
+
+  private async syncHighScores(entry: HighScoreEntry): Promise<void> {
+    const saved = await saveRemoteHighScore(entry);
+    if (!saved) return;
+    const remoteScores = await loadRemoteHighScores(MAX_HIGHSCORES);
+    if (!remoteScores) return;
+    this.highScores = remoteScores;
+    this.saveHighScores();
+  }
+
+  private normalizeStoredHighScore(entry: Partial<HighScoreEntry>): HighScoreEntry | null {
+    if (
+      typeof entry.name !== 'string' ||
+      typeof entry.time !== 'number' ||
+      typeof entry.date !== 'string' ||
+      !Number.isFinite(entry.time) ||
+      entry.time < 0
+    ) {
+      return null;
+    }
+    return {
+      name: (entry.name.trim().toUpperCase().replace(/\s+/g, '') || '---').slice(0, 3),
+      time: entry.time,
+      date: entry.date,
+    };
   }
 
   private loadHighScores(): HighScoreEntry[] {
     try {
       const raw = localStorage.getItem(HIGHSCORE_KEY);
       if (!raw) return [];
-      const parsed = JSON.parse(raw) as HighScoreEntry[];
+      const parsed = JSON.parse(raw) as Partial<HighScoreEntry>[];
       if (!Array.isArray(parsed)) return [];
       return parsed
-        .filter((entry) => (
-          typeof entry.name === 'string' &&
-          typeof entry.time === 'number' &&
-          typeof entry.date === 'string'
-        ))
+        .map((entry) => this.normalizeStoredHighScore(entry))
+        .filter((entry): entry is HighScoreEntry => entry !== null)
         .sort((a, b) => a.time - b.time)
         .slice(0, MAX_HIGHSCORES);
     } catch {
@@ -393,6 +418,12 @@ export class Game {
     const minutes = Math.floor(seconds / 60);
     const rest = seconds - minutes * 60;
     return `${minutes}:${rest.toFixed(2).padStart(5, '0')}`;
+  }
+
+  private getHighScoreRank(time: number): number | null {
+    const rank = this.highScores.findIndex((score) => time < score.time);
+    if (rank >= 0) return rank;
+    return this.highScores.length < MAX_HIGHSCORES ? this.highScores.length : null;
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────

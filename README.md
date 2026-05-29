@@ -3,7 +3,7 @@
 Ein 2D Top-Down Seifenkisten-Rennspiel mit Zeit-Reise-Thema — gebaut mit HTML5 Canvas und TypeScript.
 
 ## Spielprinzip
-Steure deine Seifenkiste einen prozedural generierten Hang hinunter, weiche Hindernissen aus und erreiche das Ziel so schnell wie möglich. Kollisionen kosten 3 Sekunden. Bestzeiten werden lokal gespeichert.
+Steure deine Seifenkiste einen prozedural generierten Hang hinunter, weiche Hindernissen aus und erreiche das Ziel so schnell wie möglich. Kollisionen kosten 3 Sekunden. Bestzeiten werden über LootLocker synchronisiert und lokal zwischengespeichert.
 
 ## Quickstart
 
@@ -11,6 +11,16 @@ Steure deine Seifenkiste einen prozedural generierten Hang hinunter, weiche Hind
 npm install
 npm run dev
 # → http://localhost:5173
+```
+
+Optional kann LootLocker über eine `.env.local` konfiguriert werden:
+
+```bash
+VITE_LOOTLOCKER_API_KEY=dein_api_key
+VITE_LOOTLOCKER_LEADERBOARD_KEY=dein_leaderboard_key
+# optional:
+# VITE_LOOTLOCKER_API_BASE=https://api.lootlocker.io/game
+# VITE_LOOTLOCKER_GAME_VERSION=0.1.0
 ```
 
 ```bash
@@ -67,7 +77,7 @@ src/
 - Dunkle, weichgezeichnete Schatten per Canvas-Filter
 - Schlanke rote Seifenkiste mit roten Achsen und schwarzen Reifen
 - Sparsame staubfarbene Partikel hinter dem Auto
-- Start-Countdown, Race-Timer, Fortschrittsleiste und LocalStorage-Bestzeiten
+- Start-Countdown, Race-Timer, Fortschrittsleiste und LootLocker-Bestzeiten mit LocalStorage-Fallback
 - Web-Audio-Soundeffekte, Crash-Ripple und Touch-Steuerung
 
 ## Tech Stack
