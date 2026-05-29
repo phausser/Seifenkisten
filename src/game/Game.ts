@@ -18,7 +18,6 @@ export type GameState = 'menu' | 'countdown' | 'race' | 'finish';
 const TARGET_H = 720;  // fixed world height — width adapts to window
 const FIXED_DT = 1 / 60;  // 60 Hz physics tick
 const CAM_AHEAD = 180;      // world units camera looks ahead of car
-const PENALTY_SECONDS = 3;
 const HIGHSCORE_KEY = 'seifenkisten.highscores.v1';
 const MAX_HIGHSCORES = 5;
 const RIPPLE_DURATION = 0.48;
@@ -55,7 +54,6 @@ export class Game {
 
   // Crash feedback
   private shakeAmt = 0;    // screen shake magnitude (pixels), decays to 0
-  private crashPopup = 0;  // seconds remaining for "+3s" label
   private rippleTime = 0;
 
   // Race systems
@@ -102,7 +100,6 @@ export class Game {
     this.flowers.place(this.track, 0xD4F2);
     this.particles.clear();
     this.shakeAmt = 0;
-    this.crashPopup = 0;
     this.rippleTime = 0;
     this.raceTime = 0;
     this.finishTime = 0;
@@ -239,7 +236,6 @@ export class Game {
 
     // ── Crash feedback decay ─────────────────────────────────────────────────
     this.shakeAmt  = Math.max(0, this.shakeAmt  - dt * 42);
-    this.crashPopup = Math.max(0, this.crashPopup - dt);
     this.rippleTime = Math.max(0, this.rippleTime - dt);
 
     // ── Particle trail ───────────────────────────────────────────────────────
@@ -268,18 +264,14 @@ export class Game {
 
   private triggerCrash(): void {
     this.car.onCollision(this.track);
-    this.raceTime += PENALTY_SECONDS;
     this.shakeAmt = 14;
-    this.crashPopup = 0.9;
     this.rippleTime = RIPPLE_DURATION;
     this.audio.crash();
   }
 
   private triggerObstacleCrash(nx: number, ny: number, pushOut: number): void {
     this.car.onObstacleCollision(this.track, nx, ny, pushOut);
-    this.raceTime += PENALTY_SECONDS;
     this.shakeAmt = 14;
-    this.crashPopup = 0.9;
     this.rippleTime = RIPPLE_DURATION;
     this.audio.crash();
   }
@@ -619,17 +611,6 @@ export class Game {
 
     // ── Ripple + "+3s" popup ──────────────────────────────────────────────────
     this.renderRipple(W, H);
-
-    // ── "+3s" popup ───────────────────────────────────────────────────────────
-    if (this.crashPopup > 0) {
-      const alpha = Math.min(1, this.crashPopup * 5);
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.font = '800 52px "Open Sans", sans-serif';
-      ctx.fillStyle = `rgba(200,20,20,${alpha.toFixed(3)})`;
-      ctx.fillText('+3s', W * 0.5, H * 0.33);
-      ctx.restore();
-    }
 
     // ── ESC hint ──────────────────────────────────────────────────────────────
     ctx.save();
