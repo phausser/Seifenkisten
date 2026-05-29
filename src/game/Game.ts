@@ -360,7 +360,7 @@ export class Game {
   private async refreshHighScores(): Promise<void> {
     const remoteScores = await loadRemoteHighScores(MAX_HIGHSCORES);
     if (!remoteScores) return;
-    this.highScores = remoteScores;
+    this.highScores = this.mergeHighScores(remoteScores);
     this.saveHighScores();
   }
 
@@ -369,8 +369,21 @@ export class Game {
     if (!saved) return;
     const remoteScores = await loadRemoteHighScores(MAX_HIGHSCORES);
     if (!remoteScores) return;
-    this.highScores = remoteScores;
+    this.highScores = this.mergeHighScores(remoteScores);
     this.saveHighScores();
+  }
+
+  private mergeHighScores(remoteScores: HighScoreEntry[]): HighScoreEntry[] {
+    const seen = new Set<string>();
+    return [...remoteScores, ...this.highScores]
+      .filter((entry) => {
+        const key = `${entry.name}|${entry.time}|${entry.date}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.time - b.time)
+      .slice(0, MAX_HIGHSCORES);
   }
 
   private normalizeStoredHighScore(entry: Partial<HighScoreEntry>): HighScoreEntry | null {
