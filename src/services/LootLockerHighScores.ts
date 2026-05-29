@@ -119,11 +119,21 @@ async function createSession(): Promise<LootLockerSession | null> {
   return session;
 }
 
-async function ensureSession(): Promise<LootLockerSession | null> {
+function clearStoredSession(): void {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+async function ensureSession(forceNew = false): Promise<LootLockerSession | null> {
   if (!isConfigured()) return null;
 
-  const stored = parseStoredSession();
-  if (stored) return stored;
+  if (!forceNew) {
+    const stored = parseStoredSession();
+    if (stored) return stored;
+  }
 
   if (!sessionPromise) {
     sessionPromise = createSession().catch(() => null);
@@ -206,6 +216,10 @@ export async function loadRemoteHighScores(count: number): Promise<HighScoreEntr
       },
     );
 
+    if (response.status === 401 || response.status === 403) {
+      clearStoredSession();
+      return null;
+    }
     if (!response.ok) return null;
 
     const data = await response.json() as { items?: LootLockerLeaderboardItem[] };
@@ -225,25 +239,31 @@ export async function saveRemoteHighScore(entry: HighScoreEntry): Promise<boolea
   const session = await ensureSession();
   if (!session) return false;
 
-  try {
-    const response = await fetch(
-      `${getApiBase()}/leaderboards/${getLeaderboardKey()}/submit`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session-token': session.sessionToken,
-        },
-        body: JSON.stringify({
-          member_id: String(session.playerId),
-          metadata: JSON.stringify({
-            ...entry,
-            name: normalizeName(entry.name),
-          }),
-          score: toLeaderboardScore(entry.time),
-        }),
+  const memberId = `${session.playerId}-${Date.now()}`;
+
+  const doSubmit = async (s: { sessionToken: string }, id: string): Promise<Response> =>
+    fetch(`${getApiBase()}/leaderboards/${getLeaderboardKey()}/submit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-token': s.sessionToken,
       },
-    );
+      body: JSON.stringify({
+        member_id: id,
+        metadata: JSON.stringify({ ...entry, name: normalizeName(entry.name) }),
+        score: toLeaderboardScore(entry.time),
+      }),
+    });
+
+  try {
+    const response = await doSubmit(session, memberId);
+    if (response.status === 401 || response.status === 403) {
+      clearStoredSession();
+      const fresh = await ensureSession(true);
+      if (!fresh) return false;
+      const retry = await doSubmit(fresh, `${fresh.playerId}-${Date.now()}`);
+      return retry.ok;
+    }
     return response.ok;
   } catch {
     return false;
