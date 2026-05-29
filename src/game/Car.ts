@@ -243,6 +243,9 @@ export class Car {
     return Math.abs(this.vx * perpX + this.vy * perpY);
   }
 
+  /** Car color – forwarded to the particle system. */
+  get color(): string { return this.cfg.color; }
+
   // ─── Rendering ─────────────────────────────────────────────────────────────
 
   render(

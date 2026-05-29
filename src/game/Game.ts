@@ -790,7 +790,7 @@ export class Game {
     }
 
     // ── Particle trail ────────────────────────────────────────────────────────
-    this.particles.render(ctx, this.camX, this.camY, W, H);
+    this.particles.render(ctx, this.camX, this.camY, W, H, this.car.color);
 
     // ── Car ───────────────────────────────────────────────────────────────────
     this.car.render(ctx, this.camX, this.camY, W, H);
