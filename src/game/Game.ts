@@ -43,9 +43,9 @@ const SLIDER_DEFS: ReadonlyArray<SliderDef> = [
 ];
 // Compact slider positions for narrow (mobile portrait) layout
 const NARROW_SLIDER_DEFS: ReadonlyArray<SliderDef> = [
-  { key: 'weight',   header: 'GEWICHT',     lo: 'LEICHT', hi: 'SCHWER', labelY: 302, trackY: 320 },
-  { key: 'steering', header: 'LENKUNG',     lo: 'TRÄGE',  hi: 'DIREKT', labelY: 358, trackY: 376 },
-  { key: 'aero',     header: 'AERODYNAMIK', lo: 'RUND',   hi: 'SPITZ',  labelY: 414, trackY: 432 },
+  { key: 'weight',   header: 'GEWICHT',     lo: 'LEICHT', hi: 'SCHWER', labelY: 334, trackY: 352 },
+  { key: 'steering', header: 'LENKUNG',     lo: 'TRÄGE',  hi: 'DIREKT', labelY: 390, trackY: 408 },
+  { key: 'aero',     header: 'AERODYNAMIK', lo: 'RUND',   hi: 'SPITZ',  labelY: 446, trackY: 464 },
 ];
 
 /**
@@ -588,8 +588,8 @@ export class Game {
         cx, narrow,
         lcx: cx, rcx: cx,
         trackW, trackX, colorSpacing, colorStartX,
-        colorY: 490, colorR: 14,
-        startBtnY: 540, startBtnW, startBtnH: 52,
+        colorY: 510, colorR: 14,
+        startBtnY: 556, startBtnW, startBtnH: 52,
         sliderDefs: NARROW_SLIDER_DEFS,
       };
     }
@@ -803,29 +803,30 @@ export class Game {
     ctx.save();
     ctx.textAlign = 'center';
 
-    // Title
+    // Title — two lines on narrow screens
     ctx.font = '800 38px "Open Sans", sans-serif';
     ctx.fillStyle = '#111111';
-    ctx.fillText('SEIFENKISTEN RENNEN', cx, 52);
+    ctx.fillText('SEIFENKISTEN', cx, 44);
+    ctx.fillText('RENNEN', cx, 84);
     ctx.strokeStyle = '#111111';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(cx - colHalfW, 66);
-    ctx.lineTo(cx + colHalfW, 66);
+    ctx.moveTo(cx - colHalfW, 98);
+    ctx.lineTo(cx + colHalfW, 98);
     ctx.stroke();
 
     // BESTZEITEN — above vehicle config
     ctx.font = '700 13px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
-    ctx.fillText('BESTZEITEN', cx, 90);
+    ctx.fillText('BESTZEITEN', cx, 122);
 
     if (this.highScores.length === 0) {
       ctx.font = '400 15px "Open Sans", sans-serif';
       ctx.fillStyle = '#aaa89a';
-      ctx.fillText('Noch keine Zeiten.', cx, 124);
+      ctx.fillText('Noch keine Zeiten.', cx, 150);
     } else {
       const rowH = 30;
-      const top = 124;
+      const top = 148;
       for (let i = 0; i < this.highScores.length; i++) {
         const score = this.highScores[i];
         const ry = top + i * rowH;
@@ -845,14 +846,14 @@ export class Game {
     ctx.strokeStyle = '#111111';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(cx - colHalfW, 264);
-    ctx.lineTo(cx + colHalfW, 264);
+    ctx.moveTo(cx - colHalfW, 296);
+    ctx.lineTo(cx + colHalfW, 296);
     ctx.stroke();
 
     // FAHRZEUG header
     ctx.font = '700 13px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
-    ctx.fillText('FAHRZEUG', cx, 283);
+    ctx.fillText('FAHRZEUG', cx, 314);
 
     this.renderMenuSliders(layout);
     this.renderMenuColors(layout);
