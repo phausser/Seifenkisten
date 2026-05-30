@@ -481,13 +481,26 @@ export class Game {
   }
 
   private getMenuLayout(W: number) {
+    const clamp = (value: number, min: number, max: number): number =>
+      Math.max(min, Math.min(max, value));
     const cx     = W / 2;
-    const rcx    = cx + 260;
     const trackW = 220;
+    const lcx = (() => {
+      const halfWidth = 190;
+      const min = halfWidth + 10;
+      const max = W - halfWidth - 10;
+      return min <= max ? clamp(cx - 260, min, max) : cx;
+    })();
+    const rcx = (() => {
+      const halfWidth = trackW / 2 + 24;
+      const min = halfWidth + 10;
+      const max = W - halfWidth - 10;
+      return min <= max ? clamp(cx + 260, min, max) : cx;
+    })();
     const trackX = rcx - trackW / 2;
     const colorSpacing = 38;
     const colorStartX  = rcx - (CAR_COLORS.length - 1) / 2 * colorSpacing;
-    return { cx, rcx, trackW, trackX, colorSpacing, colorStartX,
+    return { cx, lcx, rcx, trackW, trackX, colorSpacing, colorStartX,
              colorY: 396, colorR: 14,
              startBtnY: 450, startBtnW: 340, startBtnH: 52 };
   }
@@ -565,8 +578,7 @@ export class Game {
     const { ctx, canvas } = this;
     const W = canvas.width, H = canvas.height;
     const layout = this.getMenuLayout(W);
-    const { cx, rcx } = layout;
-    const lcx = cx - 260;  // left column centre (bestzeiten)
+    const { cx, lcx, rcx } = layout;
 
     ctx.save();
     ctx.textAlign = 'center';
