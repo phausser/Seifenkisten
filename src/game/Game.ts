@@ -506,6 +506,7 @@ export class Game {
         x <= layout.trackX + layout.trackW + 10
       ) {
         this.draggingSlider = i;
+        this.canvas.setPointerCapture(e.pointerId);
         const t = Math.max(0, Math.min(1, (x - layout.trackX) / layout.trackW));
         this.setup[sl.key] = t;
         return;
