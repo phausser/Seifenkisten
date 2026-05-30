@@ -1,5 +1,5 @@
 import type { Track } from './Track';
-import type { CarConfig } from './CarConfig';
+import type { CarConfig, CarSetup } from './CarConfig';
 
 // ─── Geometry constants (world units, local origin) ───────────────────────────
 
@@ -39,6 +39,7 @@ export const CAR_RADIUS = 18;
  */
 export class Car {
   private readonly cfg: CarConfig;
+  private readonly setup: CarSetup;
   // World state
   worldX = 0;
   worldY = 0;
@@ -54,11 +55,15 @@ export class Car {
   /** Accumulated forward distance for tire rotation animation (world units). */
   tirePhase = 0;
 
+  /** Visual front-wheel steer angle (radians), smoothly lerped toward input. */
+  steerAngle = 0;
+
   /** Seconds remaining in post-crash freeze. */
   frozen = 0;
 
-  constructor(track: Track, cfg: CarConfig) {
+  constructor(track: Track, cfg: CarConfig, setup: CarSetup) {
     this.cfg = cfg;
+    this.setup = setup;
     const s = track.getSampleAtDist(0);
     this.worldX = s.x;
     this.worldY = s.y;
@@ -139,6 +144,13 @@ export class Car {
 
     // ── Tire phase — accumulate forward distance for tread animation ──────────
     this.tirePhase += Math.max(0, fwdSpeed) * dt;
+
+    // ── Visual front-wheel steer angle — smoothly follows input ───────────────
+    // Max angle and response speed scale with steering setting (TRÄGE → DIREKT)
+    const maxWheelAngle  = 0.20 + 0.25 * this.setup.steering; // 0.20 … 0.45 rad
+    const wheelLerpSpeed = 6    + 8    * this.setup.steering;  // 6 … 14 s⁻¹
+    const targetWheelSteer = steer * maxWheelAngle;
+    this.steerAngle += (targetWheelSteer - this.steerAngle) * Math.min(1, wheelLerpSpeed * dt);
 
     // ── Integrate position ────────────────────────────────────────────────────
     this.worldX += this.vx * dt;
@@ -261,16 +273,37 @@ export class Car {
     // With Y flipped, the canvas draw angle must be mirrored so the car
     // faces the direction of travel (upward on screen).
     ctx.rotate(Math.PI - this.angle);
-    Car.drawShape(ctx, this.tirePhase, this.cfg.color);
+    Car.drawShape(ctx, this.tirePhase, this.cfg.color, this.steerAngle, this.setup.weight, this.setup.aero);
     ctx.restore();
   }
 
   /**
    * Draw the soapbox car at local origin, front pointing in −Y direction.
    * Static so a ghost car can reuse the same shape.
+   * @param wheelSteer  front-wheel steer angle in radians (positive = right)
+   * @param weight      CarSetup weight [0..1] — wider at higher values
+   * @param aero        CarSetup aero   [0..1] — rounder nose at lower values
    */
-  static drawShape(ctx: CanvasRenderingContext2D, tirePhase = 0, color = '#e63030'): void {
-    const tireOffX = AXLE_W / 2 - TIRE_W / 2;
+  static drawShape(
+    ctx: CanvasRenderingContext2D,
+    tirePhase = 0,
+    color = '#e63030',
+    wheelSteer = 0,
+    weight = 0.46,
+    aero = 0.54,
+  ): void {
+    // Width scales with weight: +28% at full weight
+    const bodyW   = BODY_W * (1 + 0.28 * weight);
+    const axleW   = AXLE_W * (1 + 0.18 * weight);
+    const hw      = bodyW / 2;
+    const hh      = BODY_H / 2;
+    const tireOffX = axleW / 2 - TIRE_W / 2;
+
+    // Nose shape: round/blunt at low aero, sharp at high aero
+    const noseR    = 3.5 + 4.5 * (1 - aero);          // 3.5 (sharp) … 8.0 (round)
+    const noseBase = -hh + 14 + 4 * (1 - aero);        // shoulder y-position
+    const noseCY   = -hh + noseR;
+    const rearR    = 8;
 
     // Luminance-based detail color so the rear circle contrasts on dark cars
     const r = parseInt(color.slice(1, 3), 16) || 0;
@@ -281,23 +314,15 @@ export class Car {
 
     // Soapbox body path: small rounded nose at front (−Y), rounded rear.
     const bodyPath = (): void => {
-      const hw       = BODY_W / 2;
-      const hh       = BODY_H / 2;
-      const noseR    = 4;           // nose tip radius
-      const noseCY   = -hh + noseR; // centre of nose arc
-      const noseBase = -hh + 16;    // y where full width begins
-      const rearR    = 8;           // rear corner radius
-
       ctx.beginPath();
-      // Nose arc: left point → tip (−Y) → right point, perfectly centred on x=0
       ctx.arc(0, noseCY, noseR, Math.PI, 0);
-      ctx.lineTo( hw, noseBase);                             // right shoulder
-      ctx.lineTo( hw,  hh - rearR);                          // right side
-      ctx.arcTo(  hw,  hh,  hw - rearR,  hh, rearR);        // rear-right corner
-      ctx.lineTo(-hw + rearR, hh);                           // rear bottom
-      ctx.arcTo( -hw,  hh, -hw,  hh - rearR, rearR);        // rear-left corner
-      ctx.lineTo(-hw, noseBase);                             // left side
-      ctx.lineTo(-noseR, noseCY);                            // approach nose arc
+      ctx.lineTo( hw, noseBase);
+      ctx.lineTo( hw,  hh - rearR);
+      ctx.arcTo(  hw,  hh,  hw - rearR,  hh, rearR);
+      ctx.lineTo(-hw + rearR, hh);
+      ctx.arcTo( -hw,  hh, -hw,  hh - rearR, rearR);
+      ctx.lineTo(-hw, noseBase);
+      ctx.lineTo(-noseR, noseCY);
       ctx.closePath();
     };
 
@@ -312,8 +337,8 @@ export class Car {
 
     // Axles behind the body
     ctx.fillStyle = color;
-    ctx.fillRect(-AXLE_W / 2, REAR_Y - AXLE_H / 2, AXLE_W, AXLE_H);
-    ctx.fillRect(-AXLE_W / 2, FRONT_Y - AXLE_H / 2, AXLE_W, AXLE_H);
+    ctx.fillRect(-axleW / 2, REAR_Y - AXLE_H / 2, axleW, AXLE_H);
+    ctx.fillRect(-axleW / 2, FRONT_Y - AXLE_H / 2, axleW, AXLE_H);
 
     // Body fill
     ctx.fillStyle = color;
@@ -323,7 +348,7 @@ export class Car {
     // Rear circular detail.
     ctx.fillStyle = detailColor;
     ctx.beginPath();
-    ctx.arc(0, BODY_H * 0.24, BODY_W * 0.30, 0, Math.PI * 2);
+    ctx.arc(0, BODY_H * 0.24, bodyW * 0.30, 0, Math.PI * 2);
     ctx.fill();
 
     // ── 3-D shading: right + bottom edges darker ─────────────────────────────
@@ -332,18 +357,18 @@ export class Car {
     ctx.clip();
 
     // Right edge
-    const rg = ctx.createLinearGradient(BODY_W * 0.05, 0, BODY_W / 2, 0);
+    const rg = ctx.createLinearGradient(bodyW * 0.05, 0, hw, 0);
     rg.addColorStop(0, 'rgba(0,0,0,0)');
     rg.addColorStop(1, 'rgba(0,0,0,0.28)');
     ctx.fillStyle = rg;
-    ctx.fillRect(-BODY_W / 2, -BODY_H / 2, BODY_W, BODY_H);
+    ctx.fillRect(-hw, -hh, bodyW, BODY_H);
 
     // Bottom (rear) edge
-    const bg = ctx.createLinearGradient(0, BODY_H * 0.05, 0, BODY_H / 2);
+    const bg = ctx.createLinearGradient(0, BODY_H * 0.05, 0, hh);
     bg.addColorStop(0, 'rgba(0,0,0,0)');
     bg.addColorStop(1, 'rgba(0,0,0,0.22)');
     ctx.fillStyle = bg;
-    ctx.fillRect(-BODY_W / 2, -BODY_H / 2, BODY_W, BODY_H);
+    ctx.fillRect(-hw, -hh, bodyW, BODY_H);
 
     ctx.restore();
 
@@ -352,22 +377,26 @@ export class Car {
     ctx.beginPath();
     ctx.ellipse(
       -2,                  // leicht links der Mittellinie
-      -BODY_H / 2 + 4,    // nahe der Nasenspitze
+      -hh + 4,             // nahe der Nasenspitze
       2.0, 1.3, -0.4, 0, Math.PI * 2,
     );
     ctx.fill();
 
-    // Tires — top-down with rolling tread stripes
+    // Tires — top-down with rolling tread stripes; front tires rotate with steer
     const STRIPE_PERIOD = 7;   // world units between stripe centres
     const STRIPE_THICK  = 2.5; // stripe thickness
     const offset = tirePhase % STRIPE_PERIOD;
 
     for (const ay of [REAR_Y, FRONT_Y]) {
+      const isFront = (ay === FRONT_Y);
       for (const side of [-1, 1]) {
-        const tx = side * tireOffX - TIRE_W / 2;
-        const ty = ay - TIRE_H / 2;
-
         ctx.save();
+        ctx.translate(side * tireOffX, ay);
+        if (isFront) ctx.rotate(wheelSteer);
+
+        const tx = -TIRE_W / 2;
+        const ty = -TIRE_H / 2;
+
         ctx.beginPath();
         ctx.rect(tx, ty, TIRE_W, TIRE_H);
         ctx.clip();

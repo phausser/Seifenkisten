@@ -45,7 +45,7 @@ const SLIDER_DEFS: ReadonlyArray<{
 }> = [
   { key: 'weight',   header: 'GEWICHT',     lo: 'LEICHT', hi: 'SCHWER', labelY: 170, trackY: 194 },
   { key: 'steering', header: 'LENKUNG',     lo: 'TRÄGE',  hi: 'DIREKT', labelY: 243, trackY: 267 },
-  { key: 'aero',     header: 'AERODYNAMIK', lo: 'HOCH',   hi: 'FLACH',  labelY: 316, trackY: 340 },
+  { key: 'aero',     header: 'AERODYNAMIK', lo: 'RUND',   hi: 'SPITZ',  labelY: 316, trackY: 340 },
 ];
 
 /**
@@ -131,7 +131,7 @@ export class Game {
   /** (Re-)create track, car and obstacles. Called on first load and "race again". */
   private initRace(): void {
     this.track = new Track();
-    this.car = new Car(this.track, buildCarConfig(this.setup));
+    this.car = new Car(this.track, buildCarConfig(this.setup), this.setup);
     this.obstacles = placeObstacles(this.track, 0xA5C3);
     this.birds.place(this.track, 0xB1D5);
     this.flowers.place(this.track, 0xD4F2);
