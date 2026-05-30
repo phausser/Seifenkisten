@@ -11,7 +11,7 @@ interface Particle {
   alpha: number;
 }
 
-const MAX_PARTICLES = 90;
+const MAX_PARTICLES = 120;
 
 // ─── ParticleSystem ──────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ export class ParticleSystem {
     fwdX: number, fwdY: number,
     speed: number,
   ): void {
-    const count = Math.random() < 0.55 ? 1 : 0;
+    const count = Math.random() < 0.8 ? 1 : 0;
     if (count > 0 && this.particles.length >= MAX_PARTICLES) this.particles.shift();
     for (let i = 0; i < count; i++) {
       const spread  = 16 + Math.random() * 12;
@@ -54,8 +54,8 @@ export class ParticleSystem {
         vy: -fwdY * speed * 0.045 + (Math.random() - 0.5) * 16,
         life:    lifetime,
         maxLife: lifetime,
-        size:    3 + Math.random() * 4,
-        alpha:   0.16 + Math.random() * 0.10,
+        size:    4 + Math.random() * 5,
+        alpha:   0.30 + Math.random() * 0.18,
       });
     }
   }
@@ -77,6 +77,7 @@ export class ParticleSystem {
     ctx: CanvasRenderingContext2D,
     camX: number, camY: number,
     W: number, H: number,
+    color = '#e63030',
   ): void {
     ctx.save();
     for (const p of this.particles) {
@@ -86,7 +87,7 @@ export class ParticleSystem {
       const r  = p.size * (0.75 + 0.45 * (1 - t));
 
       ctx.globalAlpha = t * p.alpha;
-      ctx.fillStyle = '#e63030';
+      ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.fill();

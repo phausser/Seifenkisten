@@ -12,6 +12,12 @@ import {
   saveRemoteHighScore,
   type HighScoreEntry,
 } from '../services/LootLockerHighScores';
+import {
+  buildCarConfig,
+  CAR_COLORS,
+  DEFAULT_SETUP,
+  type CarSetup,
+} from './CarConfig';
 
 export type GameState = 'menu' | 'countdown' | 'race' | 'finish';
 
@@ -26,6 +32,21 @@ const RIPPLE_DURATION = 0.48;
 const GRASS_STRIPE = 130;
 const GRASS_LIGHT  = '#427b3f';
 const GRASS_DARK   = '#386e35';
+
+// Menu slider definitions
+type SliderKey = 'weight' | 'steering' | 'aero';
+const SLIDER_DEFS: ReadonlyArray<{
+  key: SliderKey;
+  header: string;
+  lo: string;
+  hi: string;
+  labelY: number;
+  trackY: number;
+}> = [
+  { key: 'weight',   header: 'GEWICHT',     lo: 'LEICHT', hi: 'SCHWER', labelY: 170, trackY: 194 },
+  { key: 'steering', header: 'LENKUNG',     lo: 'TRÄGE',  hi: 'DIREKT', labelY: 243, trackY: 267 },
+  { key: 'aero',     header: 'AERODYNAMIK', lo: 'HOCH',   hi: 'FLACH',  labelY: 316, trackY: 340 },
+];
 
 /**
  * Core game loop and state machine.
@@ -47,6 +68,11 @@ export class Game {
   private audio = new AudioSystem();
   private birds   = new BirdSystem();
   private flowers = new FlowerSystem();
+
+  // Car setup (configured in menu)
+  private setup: CarSetup = { ...DEFAULT_SETUP };
+  private draggingSlider: number | null = null;
+  private startButtonTouched = false;
 
   // Camera (world coordinates of screen centre)
   private camX = 0;
@@ -93,6 +119,11 @@ export class Game {
     canvas.focus();
     window.addEventListener('click', () => canvas.focus());
     window.addEventListener('pointerdown', () => canvas.focus());
+
+    // Menu config UI interactions
+    canvas.addEventListener('pointerdown', (e) => this.onMenuPointerDown(e));
+    canvas.addEventListener('pointermove', (e) => this.onMenuPointerMove(e));
+    canvas.addEventListener('pointerup',   () => { this.draggingSlider = null; });
   }
 
   // ─── Init ──────────────────────────────────────────────────────────────────
@@ -100,7 +131,7 @@ export class Game {
   /** (Re-)create track, car and obstacles. Called on first load and "race again". */
   private initRace(): void {
     this.track = new Track();
-    this.car = new Car(this.track);
+    this.car = new Car(this.track, buildCarConfig(this.setup));
     this.obstacles = placeObstacles(this.track, 0xA5C3);
     this.birds.place(this.track, 0xB1D5);
     this.flowers.place(this.track, 0xD4F2);
@@ -173,7 +204,8 @@ export class Game {
   }
 
   private updateMenu(_dt: number): void {
-    if (this.input.wasPressed('Space') || this.input.wasPressed('Enter') || this.input.wasTouchPressed) {
+    if (this.input.wasPressed('Space') || this.input.wasPressed('Enter') || this.startButtonTouched) {
+      this.startButtonTouched = false;
       this.audio.resume();
       this.initRace();
       this.setState('countdown');
@@ -437,6 +469,90 @@ export class Game {
     return this.highScores.length < MAX_HIGHSCORES ? this.highScores.length : null;
   }
 
+  // ─── Menu pointer interaction ──────────────────────────────────────────────
+
+  /** Convert a PointerEvent position to logical canvas coordinates. */
+  private toCanvasCoords(e: PointerEvent): { x: number; y: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) / rect.width  * this.canvas.width,
+      y: (e.clientY - rect.top)  / rect.height * this.canvas.height,
+    };
+  }
+
+  private getMenuLayout(W: number) {
+    const clamp = (value: number, min: number, max: number): number =>
+      Math.max(min, Math.min(max, value));
+    const cx     = W / 2;
+    const trackW = 220;
+    const lcx = (() => {
+      const halfWidth = 190;
+      const min = halfWidth + 10;
+      const max = W - halfWidth - 10;
+      return min <= max ? clamp(cx - 260, min, max) : cx;
+    })();
+    const rcx = (() => {
+      const halfWidth = trackW / 2 + 24;
+      const min = halfWidth + 10;
+      const max = W - halfWidth - 10;
+      return min <= max ? clamp(cx + 260, min, max) : cx;
+    })();
+    const trackX = rcx - trackW / 2;
+    const colorSpacing = 38;
+    const colorStartX  = rcx - (CAR_COLORS.length - 1) / 2 * colorSpacing;
+    return { cx, lcx, rcx, trackW, trackX, colorSpacing, colorStartX,
+             colorY: 396, colorR: 14,
+             startBtnY: 450, startBtnW: 340, startBtnH: 52 };
+  }
+
+  private onMenuPointerDown(e: PointerEvent): void {
+    if (this.state !== 'menu') return;
+    const { x, y } = this.toCanvasCoords(e);
+    const layout = this.getMenuLayout(this.canvas.width);
+
+    // Hit-test sliders
+    for (let i = 0; i < SLIDER_DEFS.length; i++) {
+      const sl = SLIDER_DEFS[i];
+      if (
+        Math.abs(y - sl.trackY) < 16 &&
+        x >= layout.trackX - 10 &&
+        x <= layout.trackX + layout.trackW + 10
+      ) {
+        this.draggingSlider = i;
+        this.canvas.setPointerCapture(e.pointerId);
+        const t = Math.max(0, Math.min(1, (x - layout.trackX) / layout.trackW));
+        this.setup[sl.key] = t;
+        return;
+      }
+    }
+
+    // Hit-test color swatches
+    for (let i = 0; i < CAR_COLORS.length; i++) {
+      const cx = layout.colorStartX + i * layout.colorSpacing;
+      if (Math.hypot(x - cx, y - layout.colorY) < layout.colorR + 6) {
+        this.setup.colorIndex = i;
+        return;
+      }
+    }
+
+    // Hit-test start button
+    const bx = layout.cx - layout.startBtnW / 2;
+    if (
+      x >= bx && x <= bx + layout.startBtnW &&
+      y >= layout.startBtnY && y <= layout.startBtnY + layout.startBtnH
+    ) {
+      this.startButtonTouched = true;
+    }
+  }
+
+  private onMenuPointerMove(e: PointerEvent): void {
+    if (this.state !== 'menu' || this.draggingSlider === null) return;
+    const { x } = this.toCanvasCoords(e);
+    const layout = this.getMenuLayout(this.canvas.width);
+    const t = Math.max(0, Math.min(1, (x - layout.trackX) / layout.trackW));
+    this.setup[SLIDER_DEFS[this.draggingSlider].key] = t;
+  }
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   private render(): void {
@@ -461,7 +577,8 @@ export class Game {
   private renderMenu(): void {
     const { ctx, canvas } = this;
     const W = canvas.width, H = canvas.height;
-    const cx = W * 0.5;
+    const layout = this.getMenuLayout(W);
+    const { cx, lcx, rcx } = layout;
 
     ctx.save();
     ctx.textAlign = 'center';
@@ -474,54 +591,138 @@ export class Game {
     ctx.strokeStyle = '#111111';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(cx - 260, 100);
-    ctx.lineTo(cx + 260, 100);
+    ctx.moveTo(cx - 540, 100);
+    ctx.lineTo(cx + 540, 100);
     ctx.stroke();
 
-    // ── Highscores ─────────────────────────────────────────────────────────────
+    // ── Column headers ──────────────────────────────────────────────────────────
     ctx.font = '700 15px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
-    ctx.fillText('BESTZEITEN', cx, 130);
+    ctx.fillText('BESTZEITEN', lcx, 130);
+    ctx.fillText('FAHRZEUG', rcx, 130);
 
+    // ── Left: Highscores ────────────────────────────────────────────────────────
     if (this.highScores.length === 0) {
-      ctx.font = '400 20px "Open Sans", sans-serif';
+      ctx.font = '400 18px "Open Sans", sans-serif';
       ctx.fillStyle = '#888880';
-      ctx.fillText('Noch keine Zeiten gespeichert.', cx, 280);
+      ctx.fillText('Noch keine Zeiten.', lcx, 260);
     } else {
-      const rowH = 42;
-      const top = 172;
+      const rowH = 38;
+      const top  = 172;
       for (let i = 0; i < this.highScores.length; i++) {
         const score = this.highScores[i];
         const y = top + i * rowH;
         ctx.fillStyle = i % 2 === 0 ? 'rgba(17,17,17,0.06)' : 'rgba(17,17,17,0.025)';
-        ctx.fillRect(cx - 240, y - 26, 480, 34);
+        ctx.fillRect(lcx - 190, y - 24, 380, 32);
         ctx.textAlign = 'left';
-        ctx.font = '700 22px "Open Sans", sans-serif';
+        ctx.font = '700 20px "Open Sans", sans-serif';
         ctx.fillStyle = '#111111';
-        ctx.fillText(`${String(i + 1).padStart(2, '0')}.`, cx - 220, y);
-        ctx.fillText(score.name, cx - 158, y);
+        ctx.fillText(`${String(i + 1).padStart(2, '0')}.`, lcx - 170, y);
+        ctx.fillText(score.name, lcx - 108, y);
         ctx.textAlign = 'right';
-        ctx.fillText(this.formatTime(score.time), cx + 220, y);
+        ctx.fillText(this.formatTime(score.time), lcx + 170, y);
         ctx.textAlign = 'center';
       }
     }
 
+    // ── Right: Config sliders ──────────────────────────────────────────────────
+    const { trackW, trackX } = layout;
+    const TRACK_H  = 8;
+    const THUMB_R  = 10;
+
+    for (const sl of SLIDER_DEFS) {
+      const val = this.setup[sl.key];
+      const thumbX = trackX + val * trackW;
+
+      // Slider name
+      ctx.font = '700 13px "Open Sans", sans-serif';
+      ctx.fillStyle = '#888880';
+      ctx.textAlign = 'center';
+      ctx.fillText(sl.header, rcx, sl.labelY);
+
+      // Lo / hi labels
+      ctx.font = '700 12px "Open Sans", sans-serif';
+      ctx.fillStyle = '#aaa89a';
+      ctx.textAlign = 'right';
+      ctx.fillText(sl.lo, trackX - 8, sl.trackY + 4);
+      ctx.textAlign = 'left';
+      ctx.fillText(sl.hi, trackX + trackW + 8, sl.trackY + 4);
+
+      // Track background
+      ctx.fillStyle = 'rgba(17,17,17,0.12)';
+      ctx.beginPath();
+      ctx.roundRect(trackX, sl.trackY - TRACK_H / 2, trackW, TRACK_H, TRACK_H / 2);
+      ctx.fill();
+
+      // Track filled (left → thumb)
+      ctx.fillStyle = 'rgba(17,17,17,0.55)';
+      ctx.beginPath();
+      ctx.roundRect(trackX, sl.trackY - TRACK_H / 2, val * trackW, TRACK_H, TRACK_H / 2);
+      ctx.fill();
+
+      // Thumb
+      ctx.fillStyle = '#111111';
+      ctx.beginPath();
+      ctx.arc(thumbX, sl.trackY, THUMB_R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(thumbX, sl.trackY, THUMB_R - 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#111111';
+      ctx.beginPath();
+      ctx.arc(thumbX, sl.trackY, THUMB_R - 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── Right: Color swatches ──────────────────────────────────────────────────
+    ctx.font = '700 13px "Open Sans", sans-serif';
+    ctx.fillStyle = '#888880';
+    ctx.textAlign = 'center';
+    ctx.fillText('FARBE', rcx, layout.colorY - layout.colorR - 8);
+
+    for (let i = 0; i < CAR_COLORS.length; i++) {
+      const cx_i = layout.colorStartX + i * layout.colorSpacing;
+      const selected = i === this.setup.colorIndex;
+      const r = selected ? layout.colorR : layout.colorR - 3;
+
+      // Outline for selected
+      if (selected) {
+        ctx.fillStyle = '#111111';
+        ctx.beginPath();
+        ctx.arc(cx_i, layout.colorY, r + 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = CAR_COLORS[i].hex;
+      ctx.beginPath();
+      ctx.arc(cx_i, layout.colorY, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Subtle border for light colors
+      ctx.strokeStyle = 'rgba(17,17,17,0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // ── Divider + start button ──────────────────────────────────────────────────
+    const { startBtnY, startBtnW, startBtnH } = layout;
+
     ctx.strokeStyle = '#111111';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(cx - 260, 385);
-    ctx.lineTo(cx + 260, 385);
+    ctx.moveTo(cx - 540, startBtnY - 20);
+    ctx.lineTo(cx + 540, startBtnY - 20);
     ctx.stroke();
 
-    // ── Start button ───────────────────────────────────────────────────────────
-    const btnW = 340, btnH = 52;
     ctx.fillStyle = '#111111';
     ctx.beginPath();
-    ctx.roundRect(cx - btnW / 2, 404, btnW, btnH, 6);
+    ctx.roundRect(cx - startBtnW / 2, startBtnY, startBtnW, startBtnH, 6);
     ctx.fill();
     ctx.font = '700 22px "Open Sans", sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('SPACE · ENTER — Start', cx, 438);
+    ctx.textAlign = 'center';
+    ctx.fillText('SPACE · ENTER — Start', cx, startBtnY + 34);
 
     ctx.font = '400 15px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
@@ -602,7 +803,7 @@ export class Game {
     }
 
     // ── Particle trail ────────────────────────────────────────────────────────
-    this.particles.render(ctx, this.camX, this.camY, W, H);
+    this.particles.render(ctx, this.camX, this.camY, W, H, this.car.color);
 
     // ── Car ───────────────────────────────────────────────────────────────────
     this.car.render(ctx, this.camX, this.camY, W, H);

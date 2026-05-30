@@ -1,4 +1,5 @@
 import type { Track } from './Track';
+import type { CarConfig } from './CarConfig';
 
 // ─── Geometry constants (world units, local origin) ───────────────────────────
 
@@ -16,44 +17,6 @@ const FRONT_Y = -BODY_H / 2 + 15;
 
 /** Bounding circle radius used for collision detection. */
 export const CAR_RADIUS = 18;
-
-// ─── Physics tuning ───────────────────────────────────────────────────────────
-
-/** Downhill acceleration – applied along the track tangent direction (u/s²). */
-const GRAVITY = 240;
-
-/** Linear drag on the road surface.  Terminal velocity ≈ GRAVITY / ROAD_DRAG. */
-const ROAD_DRAG = 0.62;   // terminal ≈ 387 u/s
-
-/** Much higher drag off-road so the car slows noticeably on grass. */
-const GRASS_DRAG = 3.2;    // terminal ≈  75 u/s
-
-/** Lateral grip at standstill – high = very grippy. */
-const LATERAL_GRIP = 8.0;
-
-/** How quickly grip fades with speed.  grip = LATERAL_GRIP / (1 + v · k). */
-const DRIFT_SPEED_FACTOR = 0.009;
-
-/** Reduced grip on grass – the car slides more. */
-const GRASS_LATERAL_GRIP = 1.2;
-
-/** Angular acceleration from a full steer input at zero speed (rad/s²). */
-const STEER_ACCEL = 11.0;
-
-/** Speed-dependent steer reduction:  effective = STEER_ACCEL / (1 + v * k). */
-const STEER_SPEED_FACTOR = 0.0017;
-
-/** Angular velocity exponential decay rate (1/s). */
-const ANG_DAMP = 10.0;
-
-/** Brake force applied opposite forward movement (u/s²). */
-const BRAKE_FORCE = 520;
-
-/** Hard velocity cap (u/s). */
-const MAX_SPEED = 500;
-
-/** Starting speed along track so the car rolls immediately (u/s). */
-const INIT_SPEED = 90;
 
 /**
  * The player's soapbox car – Phase 2 full physics.
@@ -75,6 +38,7 @@ const INIT_SPEED = 90;
  * turning toward screen-right when going screen-down).
  */
 export class Car {
+  private readonly cfg: CarConfig;
   // World state
   worldX = 0;
   worldY = 0;
@@ -93,15 +57,16 @@ export class Car {
   /** Seconds remaining in post-crash freeze. */
   frozen = 0;
 
-  constructor(track: Track) {
+  constructor(track: Track, cfg: CarConfig) {
+    this.cfg = cfg;
     const s = track.getSampleAtDist(0);
     this.worldX = s.x;
     this.worldY = s.y;
     // Heading aligned with track tangent (original convention: atan2(ty,tx)+π/2)
     this.angle = Math.atan2(s.ty, s.tx) + Math.PI * 0.5;
     // Rolling start: initial velocity along track tangent
-    this.vx = s.tx * INIT_SPEED;
-    this.vy = s.ty * INIT_SPEED;
+    this.vx = s.tx * cfg.initSpeed;
+    this.vy = s.ty * cfg.initSpeed;
   }
 
   // ─── Update ────────────────────────────────────────────────────────────────
@@ -122,11 +87,11 @@ export class Car {
     // ── Sample track at current progress ──────────────────────────────────────
     const s = track.getSampleAtDist(this.dist);
     const onRoad = Math.abs(this.lateralOffset) < s.halfWidth - CAR_RADIUS * 0.5;
-    const drag = onRoad ? ROAD_DRAG : GRASS_DRAG;
+    const drag = onRoad ? this.cfg.roadDrag : this.cfg.grassDrag;
     // Grip falls with speed so the car drifts outward at high speed in corners
     const curSpeed = Math.hypot(this.vx, this.vy);
-    const driftGrip = LATERAL_GRIP / (1 + curSpeed * DRIFT_SPEED_FACTOR);
-    const grip = onRoad ? driftGrip : GRASS_LATERAL_GRIP;
+    const driftGrip = this.cfg.lateralGrip / (1 + curSpeed * this.cfg.driftSpeedFactor);
+    const grip = onRoad ? driftGrip : this.cfg.grassLateralGrip;
 
     // ── Car heading directions ─────────────────────────────────────────────────
     const fwdX = Math.sin(this.angle);   // forward X
@@ -135,8 +100,8 @@ export class Car {
     const perpY = Math.sin(this.angle);   // perpendicular axis Y
 
     // ── Gravity – downhill force along track tangent ───────────────────────────
-    this.vx += s.tx * GRAVITY * dt;
-    this.vy += s.ty * GRAVITY * dt;
+    this.vx += s.tx * this.cfg.gravity * dt;
+    this.vy += s.ty * this.cfg.gravity * dt;
 
     // ── Forward drag ──────────────────────────────────────────────────────────
     const fwdSpeed = this.vx * fwdX + this.vy * fwdY;
@@ -147,7 +112,7 @@ export class Car {
 
     // ── Brake – reduce forward speed without cancelling sideways drift ────────
     if (brake > 0 && fwdSpeed > 0) {
-      const brakeDelta = Math.min(fwdSpeed, BRAKE_FORCE * brake * dt);
+      const brakeDelta = Math.min(fwdSpeed, this.cfg.brakeForce * brake * dt);
       this.vx -= fwdX * brakeDelta;
       this.vy -= fwdY * brakeDelta;
     }
@@ -160,16 +125,16 @@ export class Car {
 
     // ── Speed cap ──────────────────────────────────────────────────────────────
     const speed = Math.hypot(this.vx, this.vy);
-    if (speed > MAX_SPEED) {
-      this.vx *= MAX_SPEED / speed;
-      this.vy *= MAX_SPEED / speed;
+    if (speed > this.cfg.maxSpeed) {
+      this.vx *= this.cfg.maxSpeed / speed;
+      this.vy *= this.cfg.maxSpeed / speed;
     }
 
     // ── Steering ──────────────────────────────────────────────────────────────
     // Right (steer > 0) → angle decreases → minus sign
-    const steerRate = STEER_ACCEL / (1 + speed * STEER_SPEED_FACTOR);
+    const steerRate = this.cfg.steerAccel / (1 + speed * this.cfg.steerSpeedFactor);
     this.angularVel -= steer * steerRate * dt;
-    this.angularVel *= Math.exp(-ANG_DAMP * dt);
+    this.angularVel *= Math.exp(-this.cfg.angDamp * dt);
     this.angle += this.angularVel * dt;
 
     // ── Tire phase — accumulate forward distance for tread animation ──────────
@@ -278,6 +243,9 @@ export class Car {
     return Math.abs(this.vx * perpX + this.vy * perpY);
   }
 
+  /** Car color – forwarded to the particle system. */
+  get color(): string { return this.cfg.color; }
+
   // ─── Rendering ─────────────────────────────────────────────────────────────
 
   render(
@@ -293,7 +261,7 @@ export class Car {
     // With Y flipped, the canvas draw angle must be mirrored so the car
     // faces the direction of travel (upward on screen).
     ctx.rotate(Math.PI - this.angle);
-    Car.drawShape(ctx, this.tirePhase);
+    Car.drawShape(ctx, this.tirePhase, this.cfg.color);
     ctx.restore();
   }
 
@@ -301,8 +269,15 @@ export class Car {
    * Draw the soapbox car at local origin, front pointing in −Y direction.
    * Static so a ghost car can reuse the same shape.
    */
-  static drawShape(ctx: CanvasRenderingContext2D, tirePhase = 0): void {
+  static drawShape(ctx: CanvasRenderingContext2D, tirePhase = 0, color = '#e63030'): void {
     const tireOffX = AXLE_W / 2 - TIRE_W / 2;
+
+    // Luminance-based detail color so the rear circle contrasts on dark cars
+    const r = parseInt(color.slice(1, 3), 16) || 0;
+    const g = parseInt(color.slice(3, 5), 16) || 0;
+    const b = parseInt(color.slice(5, 7), 16) || 0;
+    const lum = (r * 299 + g * 587 + b * 114) / 1000;
+    const detailColor = lum > 60 ? '#111111' : '#888888';
 
     // Soapbox body path: small rounded nose at front (−Y), rounded rear.
     const bodyPath = (): void => {
@@ -336,17 +311,17 @@ export class Car {
     ctx.restore();
 
     // Axles behind the body
-    ctx.fillStyle = '#e63030';
+    ctx.fillStyle = color;
     ctx.fillRect(-AXLE_W / 2, REAR_Y - AXLE_H / 2, AXLE_W, AXLE_H);
     ctx.fillRect(-AXLE_W / 2, FRONT_Y - AXLE_H / 2, AXLE_W, AXLE_H);
 
     // Body fill
-    ctx.fillStyle = '#e63030';
+    ctx.fillStyle = color;
     bodyPath();
     ctx.fill();
 
     // Rear circular detail.
-    ctx.fillStyle = '#111111';
+    ctx.fillStyle = detailColor;
     ctx.beginPath();
     ctx.arc(0, BODY_H * 0.24, BODY_W * 0.30, 0, Math.PI * 2);
     ctx.fill();
