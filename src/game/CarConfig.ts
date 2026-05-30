@@ -35,10 +35,9 @@ export const CAR_COLORS: ReadonlyArray<{ readonly label: string; readonly hex: s
 ];
 
 /**
- * Default setup reproduces the original hard-coded physics constants:
- *   gravity=240, roadDrag=0.62, lateralGrip=8.0, steerAccel=11.0,
- *   angDamp=10.0, brakeForce=520, initSpeed=90, driftSpeedFactor=0.009
- * Values are the mean inverse-lerp across all constants for each axis.
+ * Default setup approximates the original hard-coded physics constants.
+ * Several constants map to different inverse-lerp positions on the same axis,
+ * so a single slider value cannot reproduce every original value exactly.
  */
 export const DEFAULT_SETUP: CarSetup = {
   weight:     0.46,   // gravity≈0.462, grip=0.5, drift=0.375, brake≈0.471, init=0.5
