@@ -35,17 +35,17 @@ const GRASS_DARK   = '#386e35';
 
 // Menu slider definitions
 type SliderKey = 'weight' | 'steering' | 'aero';
-const SLIDER_DEFS: ReadonlyArray<{
-  key: SliderKey;
-  header: string;
-  lo: string;
-  hi: string;
-  labelY: number;
-  trackY: number;
-}> = [
+type SliderDef = { key: SliderKey; header: string; lo: string; hi: string; labelY: number; trackY: number };
+const SLIDER_DEFS: ReadonlyArray<SliderDef> = [
   { key: 'weight',   header: 'GEWICHT',     lo: 'LEICHT', hi: 'SCHWER', labelY: 170, trackY: 194 },
   { key: 'steering', header: 'LENKUNG',     lo: 'TRÄGE',  hi: 'DIREKT', labelY: 243, trackY: 267 },
   { key: 'aero',     header: 'AERODYNAMIK', lo: 'RUND',   hi: 'SPITZ',  labelY: 316, trackY: 340 },
+];
+// Compact slider positions for narrow (mobile portrait) layout
+const NARROW_SLIDER_DEFS: ReadonlyArray<SliderDef> = [
+  { key: 'weight',   header: 'GEWICHT',     lo: 'LEICHT', hi: 'SCHWER', labelY: 302, trackY: 320 },
+  { key: 'steering', header: 'LENKUNG',     lo: 'TRÄGE',  hi: 'DIREKT', labelY: 358, trackY: 376 },
+  { key: 'aero',     header: 'AERODYNAMIK', lo: 'RUND',   hi: 'SPITZ',  labelY: 414, trackY: 432 },
 ];
 
 /**
@@ -91,6 +91,10 @@ export class Game {
   private pendingHighScoreRank: number | null = null;
   private pendingName = '';
 
+  // Mobile name-entry keyboard support
+  private nameInput: HTMLInputElement | null = null;
+  private nameInputActive = false;
+
   // Frame timing
   private lastTimestamp = 0;
   private accumulator = 0;
@@ -117,11 +121,14 @@ export class Game {
     // Ensure the canvas always has keyboard focus on macOS/Chrome
     canvas.setAttribute('tabindex', '0');
     canvas.focus();
-    window.addEventListener('click', () => canvas.focus());
-    window.addEventListener('pointerdown', () => canvas.focus());
+    window.addEventListener('click', () => { if (!this.nameInputActive) canvas.focus(); });
+    window.addEventListener('pointerdown', () => { if (!this.nameInputActive) canvas.focus(); });
 
     // Menu config UI interactions
-    canvas.addEventListener('pointerdown', (e) => this.onMenuPointerDown(e));
+    canvas.addEventListener('pointerdown', (e) => {
+      if (this.state === 'menu')   this.onMenuPointerDown(e);
+      if (this.state === 'finish') this.onFinishPointerDown(e);
+    });
     canvas.addEventListener('pointermove', (e) => this.onMenuPointerMove(e));
     canvas.addEventListener('pointerup',   () => { this.draggingSlider = null; });
   }
@@ -351,10 +358,20 @@ export class Game {
     if (rank !== null) {
       this.pendingHighScoreRank = rank;
       this.pendingName = '';
+      this.ensureNameInput(); // create element early; focus happens on first user tap
     }
   }
 
   private updateNameEntry(): void {
+    if (this.nameInputActive) {
+      // All text input is handled by the hidden <input> element; only intercept Enter here
+      // (keydown on the input also fires Enter, but guard in case focus was lost)
+      if (this.input.wasPressed('Enter')) {
+        this.commitPendingHighScore();
+      }
+      return;
+    }
+
     for (const code of this.input.pressedCodes) {
       if (code === 'Backspace') {
         this.pendingName = this.pendingName.slice(0, -1);
@@ -384,6 +401,7 @@ export class Game {
     this.saveHighScores();
     void this.syncHighScores(entry);
     this.pendingHighScoreRank = null;
+    this.blurNameInput();
     this.audio.save();
   }
 
@@ -480,10 +498,104 @@ export class Game {
     };
   }
 
+  // ─── Hidden input for mobile keyboard (name entry) ─────────────────────────
+
+  private ensureNameInput(): void {
+    if (this.nameInput) return;
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.maxLength = 3;
+    inp.setAttribute('autocomplete', 'off');
+    inp.setAttribute('autocapitalize', 'characters');
+    inp.setAttribute('autocorrect', 'off');
+    inp.setAttribute('spellcheck', 'false');
+    // Off-screen but not display:none — must be visible to browsers for focus/keyboard
+    inp.style.cssText = [
+      'position:fixed', 'top:-120px', 'left:0',
+      'width:1px', 'height:1px', 'opacity:0',
+      'pointer-events:none', 'font-size:16px',  // 16px prevents iOS zoom
+    ].join(';');
+    document.body.appendChild(inp);
+
+    inp.addEventListener('input', () => {
+      if (!this.nameInputActive) return;
+      const val = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      this.pendingName = val.slice(0, 3);
+      inp.value = this.pendingName;
+    });
+    inp.addEventListener('keydown', (e) => {
+      if (!this.nameInputActive) return;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.commitPendingHighScore();
+      }
+    });
+    inp.addEventListener('blur', () => { this.nameInputActive = false; });
+    this.nameInput = inp;
+  }
+
+  private focusNameInput(): void {
+    this.ensureNameInput();
+    if (!this.nameInput) return;
+    this.nameInput.value = this.pendingName;
+    this.nameInputActive = true;
+    this.nameInput.focus();
+  }
+
+  private blurNameInput(): void {
+    this.nameInputActive = false;
+    this.nameInput?.blur();
+  }
+
+  // ─── Finish screen pointer interaction ─────────────────────────────────────
+
+  private onFinishPointerDown(e: PointerEvent): void {
+    if (this.pendingHighScoreRank === null) return;
+    const { y } = this.toCanvasCoords(e);
+    const H = this.canvas.height;
+    const cy = H * 0.5;
+
+    // Any tap on the finish screen: focus the input (iOS requires this to be
+    // called synchronously inside a user-gesture handler to show the keyboard)
+    if (!this.nameInputActive) {
+      this.focusNameInput();
+    }
+
+    // OK button hit area
+    if (y >= cy + 172 && y <= cy + 228) {
+      this.commitPendingHighScore();
+    }
+  }
+
   private getMenuLayout(W: number) {
+    const cx = W / 2;
+
+    // Compute where the two columns would land in wide mode
+    const scoreHalfW = 190;
+    const sliderHalfW = 110 + 24; // trackW/2 + padding
+    const lcxWide = Math.max(scoreHalfW + 10, cx - 260);
+    const rcxWide = Math.min(W - sliderHalfW - 10, cx + 260);
+    const columnGap = (rcxWide - 110) - (lcxWide + scoreHalfW);
+    const narrow = columnGap < 30; // switch to single-column before overlap
+
+    if (narrow) {
+      const trackW = Math.min(220, W - 80);
+      const trackX = cx - trackW / 2;
+      const colorSpacing = 34;
+      const colorStartX  = cx - (CAR_COLORS.length - 1) / 2 * colorSpacing;
+      const startBtnW = Math.min(300, W - 40);
+      return {
+        cx, narrow,
+        lcx: cx, rcx: cx,
+        trackW, trackX, colorSpacing, colorStartX,
+        colorY: 490, colorR: 14,
+        startBtnY: 540, startBtnW, startBtnH: 52,
+        sliderDefs: NARROW_SLIDER_DEFS,
+      };
+    }
+
     const clamp = (value: number, min: number, max: number): number =>
       Math.max(min, Math.min(max, value));
-    const cx     = W / 2;
     const trackW = 220;
     const lcx = (() => {
       const halfWidth = 190;
@@ -500,9 +612,13 @@ export class Game {
     const trackX = rcx - trackW / 2;
     const colorSpacing = 38;
     const colorStartX  = rcx - (CAR_COLORS.length - 1) / 2 * colorSpacing;
-    return { cx, lcx, rcx, trackW, trackX, colorSpacing, colorStartX,
-             colorY: 396, colorR: 14,
-             startBtnY: 450, startBtnW: 340, startBtnH: 52 };
+    return {
+      cx, narrow,
+      lcx, rcx, trackW, trackX, colorSpacing, colorStartX,
+      colorY: 396, colorR: 14,
+      startBtnY: 450, startBtnW: 340, startBtnH: 52,
+      sliderDefs: SLIDER_DEFS,
+    };
   }
 
   private onMenuPointerDown(e: PointerEvent): void {
@@ -511,10 +627,10 @@ export class Game {
     const layout = this.getMenuLayout(this.canvas.width);
 
     // Hit-test sliders
-    for (let i = 0; i < SLIDER_DEFS.length; i++) {
-      const sl = SLIDER_DEFS[i];
+    for (let i = 0; i < layout.sliderDefs.length; i++) {
+      const sl = layout.sliderDefs[i];
       if (
-        Math.abs(y - sl.trackY) < 16 &&
+        Math.abs(y - sl.trackY) < 20 &&
         x >= layout.trackX - 10 &&
         x <= layout.trackX + layout.trackW + 10
       ) {
@@ -550,7 +666,7 @@ export class Game {
     const { x } = this.toCanvasCoords(e);
     const layout = this.getMenuLayout(this.canvas.width);
     const t = Math.max(0, Math.min(1, (x - layout.trackX) / layout.trackW));
-    this.setup[SLIDER_DEFS[this.draggingSlider].key] = t;
+    this.setup[layout.sliderDefs[this.draggingSlider].key] = t;
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -578,16 +694,201 @@ export class Game {
     const { ctx, canvas } = this;
     const W = canvas.width, H = canvas.height;
     const layout = this.getMenuLayout(W);
-    const { cx, lcx, rcx } = layout;
+
+    if (layout.narrow) {
+      this.renderMenuNarrow(layout);
+    } else {
+      this.renderMenuWide(layout);
+    }
+
+    // Hint text (responsive)
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = '400 14px "Open Sans", sans-serif';
+    ctx.fillStyle = '#888880';
+    if (layout.narrow) {
+      ctx.fillText('Touch: Links / Mitte Bremse / Rechts', layout.cx, H - 18);
+    } else {
+      ctx.fillText('Steuerung: ← → oder A D · Bremse: ↓ oder S', layout.cx, H - 30);
+    }
+    ctx.restore();
+  }
+
+  private renderMenuSliders(
+    layout: ReturnType<typeof this.getMenuLayout>,
+  ): void {
+    const { ctx } = this;
+    const { rcx, trackW, trackX, sliderDefs } = layout;
+    const TRACK_H = 8;
+    const THUMB_R = 10;
+
+    for (const sl of sliderDefs) {
+      const val = this.setup[sl.key];
+      const thumbX = trackX + val * trackW;
+
+      ctx.font = '700 13px "Open Sans", sans-serif';
+      ctx.fillStyle = '#888880';
+      ctx.textAlign = 'center';
+      ctx.fillText(sl.header, rcx, sl.labelY);
+
+      ctx.font = '700 12px "Open Sans", sans-serif';
+      ctx.fillStyle = '#aaa89a';
+      ctx.textAlign = 'right';
+      ctx.fillText(sl.lo, trackX - 8, sl.trackY + 4);
+      ctx.textAlign = 'left';
+      ctx.fillText(sl.hi, trackX + trackW + 8, sl.trackY + 4);
+
+      ctx.fillStyle = 'rgba(17,17,17,0.12)';
+      ctx.beginPath();
+      ctx.roundRect(trackX, sl.trackY - TRACK_H / 2, trackW, TRACK_H, TRACK_H / 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(17,17,17,0.55)';
+      ctx.beginPath();
+      ctx.roundRect(trackX, sl.trackY - TRACK_H / 2, val * trackW, TRACK_H, TRACK_H / 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#111111';
+      ctx.beginPath();
+      ctx.arc(thumbX, sl.trackY, THUMB_R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(thumbX, sl.trackY, THUMB_R - 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#111111';
+      ctx.beginPath();
+      ctx.arc(thumbX, sl.trackY, THUMB_R - 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  private renderMenuColors(layout: ReturnType<typeof this.getMenuLayout>): void {
+    const { ctx } = this;
+    const { rcx, colorY, colorR, colorStartX, colorSpacing } = layout;
+
+    ctx.font = '700 13px "Open Sans", sans-serif';
+    ctx.fillStyle = '#888880';
+    ctx.textAlign = 'center';
+    ctx.fillText('FARBE', rcx, colorY - colorR - 8);
+
+    for (let i = 0; i < CAR_COLORS.length; i++) {
+      const cx_i = colorStartX + i * colorSpacing;
+      const selected = i === this.setup.colorIndex;
+      const r = selected ? colorR : colorR - 3;
+
+      if (selected) {
+        ctx.fillStyle = '#111111';
+        ctx.beginPath();
+        ctx.arc(cx_i, colorY, r + 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = CAR_COLORS[i].hex;
+      ctx.beginPath();
+      ctx.arc(cx_i, colorY, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(17,17,17,0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  /** Narrow (mobile portrait) single-column menu. */
+  private renderMenuNarrow(layout: ReturnType<typeof this.getMenuLayout>): void {
+    const { ctx, canvas } = this;
+    const W = canvas.width;
+    const { cx, startBtnY, startBtnW, startBtnH } = layout;
+    const colHalfW = W * 0.46;
 
     ctx.save();
     ctx.textAlign = 'center';
 
-    // ── Title ──────────────────────────────────────────────────────────────────
+    // Title
+    ctx.font = '800 38px "Open Sans", sans-serif';
+    ctx.fillStyle = '#111111';
+    ctx.fillText('SEIFENKISTEN RENNEN', cx, 52);
+    ctx.strokeStyle = '#111111';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - colHalfW, 66);
+    ctx.lineTo(cx + colHalfW, 66);
+    ctx.stroke();
+
+    // BESTZEITEN — above vehicle config
+    ctx.font = '700 13px "Open Sans", sans-serif';
+    ctx.fillStyle = '#888880';
+    ctx.fillText('BESTZEITEN', cx, 90);
+
+    if (this.highScores.length === 0) {
+      ctx.font = '400 15px "Open Sans", sans-serif';
+      ctx.fillStyle = '#aaa89a';
+      ctx.fillText('Noch keine Zeiten.', cx, 124);
+    } else {
+      const rowH = 30;
+      const top = 124;
+      for (let i = 0; i < this.highScores.length; i++) {
+        const score = this.highScores[i];
+        const ry = top + i * rowH;
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(17,17,17,0.06)' : 'rgba(17,17,17,0.025)';
+        ctx.fillRect(cx - colHalfW, ry - 20, colHalfW * 2, 26);
+        ctx.textAlign = 'left';
+        ctx.font = '700 16px "Open Sans", sans-serif';
+        ctx.fillStyle = '#111111';
+        ctx.fillText(`${String(i + 1).padStart(2, '0')}. ${score.name}`, cx - colHalfW + 8, ry);
+        ctx.textAlign = 'right';
+        ctx.fillText(this.formatTime(score.time), cx + colHalfW - 8, ry);
+        ctx.textAlign = 'center';
+      }
+    }
+
+    // Separator before vehicle config
+    ctx.strokeStyle = '#111111';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - colHalfW, 264);
+    ctx.lineTo(cx + colHalfW, 264);
+    ctx.stroke();
+
+    // FAHRZEUG header
+    ctx.font = '700 13px "Open Sans", sans-serif';
+    ctx.fillStyle = '#888880';
+    ctx.fillText('FAHRZEUG', cx, 283);
+
+    this.renderMenuSliders(layout);
+    this.renderMenuColors(layout);
+
+    // Separator before start button
+    ctx.strokeStyle = '#111111';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - colHalfW, startBtnY - 14);
+    ctx.lineTo(cx + colHalfW, startBtnY - 14);
+    ctx.stroke();
+
+    // Start button
+    ctx.fillStyle = '#111111';
+    ctx.beginPath();
+    ctx.roundRect(cx - startBtnW / 2, startBtnY, startBtnW, startBtnH, 6);
+    ctx.fill();
+    ctx.font = '700 20px "Open Sans", sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('TIPPEN — START', cx, startBtnY + 33);
+
+    ctx.restore();
+  }
+
+  /** Wide (desktop / landscape) two-column menu. */
+  private renderMenuWide(layout: ReturnType<typeof this.getMenuLayout>): void {
+    const { ctx } = this;
+    const { cx, lcx, rcx, startBtnY, startBtnW, startBtnH } = layout;
+
+    ctx.save();
+    ctx.textAlign = 'center';
+
+    // Title
     ctx.font = '800 72px "Open Sans", sans-serif';
     ctx.fillStyle = '#111111';
     ctx.fillText('SEIFENKISTEN RENNEN', cx, 82);
-
     ctx.strokeStyle = '#111111';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -595,13 +896,13 @@ export class Game {
     ctx.lineTo(cx + 540, 100);
     ctx.stroke();
 
-    // ── Column headers ──────────────────────────────────────────────────────────
+    // Column headers
     ctx.font = '700 15px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
     ctx.fillText('BESTZEITEN', lcx, 130);
     ctx.fillText('FAHRZEUG', rcx, 130);
 
-    // ── Left: Highscores ────────────────────────────────────────────────────────
+    // Left: Highscores
     if (this.highScores.length === 0) {
       ctx.font = '400 18px "Open Sans", sans-serif';
       ctx.fillStyle = '#888880';
@@ -625,89 +926,13 @@ export class Game {
       }
     }
 
-    // ── Right: Config sliders ──────────────────────────────────────────────────
-    const { trackW, trackX } = layout;
-    const TRACK_H  = 8;
-    const THUMB_R  = 10;
+    // Right: Config sliders
+    this.renderMenuSliders(layout);
 
-    for (const sl of SLIDER_DEFS) {
-      const val = this.setup[sl.key];
-      const thumbX = trackX + val * trackW;
+    // Right: Color swatches
+    this.renderMenuColors(layout);
 
-      // Slider name
-      ctx.font = '700 13px "Open Sans", sans-serif';
-      ctx.fillStyle = '#888880';
-      ctx.textAlign = 'center';
-      ctx.fillText(sl.header, rcx, sl.labelY);
-
-      // Lo / hi labels
-      ctx.font = '700 12px "Open Sans", sans-serif';
-      ctx.fillStyle = '#aaa89a';
-      ctx.textAlign = 'right';
-      ctx.fillText(sl.lo, trackX - 8, sl.trackY + 4);
-      ctx.textAlign = 'left';
-      ctx.fillText(sl.hi, trackX + trackW + 8, sl.trackY + 4);
-
-      // Track background
-      ctx.fillStyle = 'rgba(17,17,17,0.12)';
-      ctx.beginPath();
-      ctx.roundRect(trackX, sl.trackY - TRACK_H / 2, trackW, TRACK_H, TRACK_H / 2);
-      ctx.fill();
-
-      // Track filled (left → thumb)
-      ctx.fillStyle = 'rgba(17,17,17,0.55)';
-      ctx.beginPath();
-      ctx.roundRect(trackX, sl.trackY - TRACK_H / 2, val * trackW, TRACK_H, TRACK_H / 2);
-      ctx.fill();
-
-      // Thumb
-      ctx.fillStyle = '#111111';
-      ctx.beginPath();
-      ctx.arc(thumbX, sl.trackY, THUMB_R, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(thumbX, sl.trackY, THUMB_R - 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#111111';
-      ctx.beginPath();
-      ctx.arc(thumbX, sl.trackY, THUMB_R - 6, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // ── Right: Color swatches ──────────────────────────────────────────────────
-    ctx.font = '700 13px "Open Sans", sans-serif';
-    ctx.fillStyle = '#888880';
-    ctx.textAlign = 'center';
-    ctx.fillText('FARBE', rcx, layout.colorY - layout.colorR - 8);
-
-    for (let i = 0; i < CAR_COLORS.length; i++) {
-      const cx_i = layout.colorStartX + i * layout.colorSpacing;
-      const selected = i === this.setup.colorIndex;
-      const r = selected ? layout.colorR : layout.colorR - 3;
-
-      // Outline for selected
-      if (selected) {
-        ctx.fillStyle = '#111111';
-        ctx.beginPath();
-        ctx.arc(cx_i, layout.colorY, r + 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.fillStyle = CAR_COLORS[i].hex;
-      ctx.beginPath();
-      ctx.arc(cx_i, layout.colorY, r, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Subtle border for light colors
-      ctx.strokeStyle = 'rgba(17,17,17,0.25)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-
-    // ── Divider + start button ──────────────────────────────────────────────────
-    const { startBtnY, startBtnW, startBtnH } = layout;
-
+    // Divider + start button
     ctx.strokeStyle = '#111111';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -723,10 +948,6 @@ export class Game {
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.fillText('SPACE · ENTER — Start', cx, startBtnY + 34);
-
-    ctx.font = '400 15px "Open Sans", sans-serif';
-    ctx.fillStyle = '#888880';
-    ctx.fillText('Steuerung: ← → oder A D · Bremse: ↓ oder S', cx, H - 30);
 
     ctx.restore();
   }
@@ -933,10 +1154,12 @@ export class Game {
     this.track.render(ctx, this.camX, this.camY, W, H);
     this.car.render(ctx, this.camX, this.camY, W, H);
 
-    // Overlay panel — tall enough for name-entry flow
+    // Responsive panel
+    const panelW = Math.min(560, W - 24);
+    const panelH = this.pendingHighScoreRank !== null ? 340 : 300;
     ctx.fillStyle = 'rgba(245,242,235,0.92)';
     ctx.beginPath();
-    ctx.roundRect(cx - 280, cy - 130, 560, 300, 8);
+    ctx.roundRect(cx - panelW / 2, cy - 130, panelW, panelH, 8);
     ctx.fill();
     ctx.strokeStyle = '#111111';
     ctx.lineWidth = 3;
@@ -945,7 +1168,8 @@ export class Game {
     ctx.save();
     ctx.textAlign = 'center';
 
-    ctx.font = '800 52px "Open Sans", sans-serif';
+    const titleSize = panelW < 360 ? 36 : 52;
+    ctx.font = `800 ${titleSize}px "Open Sans", sans-serif`;
     ctx.fillStyle = '#111111';
     ctx.fillText('ZIEL ERREICHT!', cx, cy - 70);
 
@@ -954,7 +1178,7 @@ export class Game {
     ctx.fillStyle = '#111111';
     ctx.fillText(this.formatTime(this.finishTime), cx, cy - 26);
 
-    // Best time (same font, grey)
+    // Best time
     const best = this.highScores[0];
     ctx.font = '400 13px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
@@ -968,14 +1192,23 @@ export class Game {
       ctx.fillStyle = '#111111';
       ctx.fillText(`Neue Bestzeit #${this.pendingHighScoreRank + 1}`, cx, cy + 74);
       this.renderNameEntry(cx, cy + 110);
-      ctx.font = '400 15px "Open Sans", sans-serif';
-      ctx.fillStyle = '#555550';
-      ctx.fillText('3 Zeichen · ENTER speichern · BACKSPACE löschen', cx, cy + 154);
+
+      // OK button (touch submit)
+      const okW = Math.min(200, panelW - 40);
+      ctx.fillStyle = '#111111';
+      ctx.beginPath();
+      ctx.roundRect(cx - okW / 2, cy + 172, okW, 46, 6);
+      ctx.fill();
+      ctx.font = '700 18px "Open Sans", sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('OK ✓', cx, cy + 201);
+
       ctx.restore();
       return;
     }
 
-    const btnW = 300, btnH = 48;
+    const btnW = Math.min(300, panelW - 40);
+    const btnH = 48;
     ctx.fillStyle = '#111111';
     ctx.beginPath();
     ctx.roundRect(cx - btnW / 2, cy + 72, btnW, btnH, 6);
