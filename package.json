@@ -1,6 +1,7 @@
 {
   "name": "seifenkisten-rennen",
   "version": "0.1.0",
+  "type": "module",
   "description": "Soapbox Derby Racing Game",
   "scripts": {
     "dev": "vite",
