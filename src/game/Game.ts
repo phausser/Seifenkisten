@@ -8,6 +8,7 @@ import { BirdSystem } from './BirdSystem';
 import { FlowerSystem } from './FlowerSystem';
 import type { Obstacle } from './Obstacle';
 import {
+  isRemoteHighScoresConfigured,
   loadRemoteHighScores,
   saveRemoteHighScore,
   type HighScoreEntry,
@@ -451,7 +452,9 @@ export class Game {
     this.highScores.push(entry);
     this.highScores.sort((a, b) => a.time - b.time);
     this.highScores = this.highScores.slice(0, MAX_HIGHSCORES);
-    this.saveHighScores();
+    if (!isRemoteHighScoresConfigured()) {
+      this.saveHighScores();
+    }
     void this.syncHighScores(entry);
     this.pendingHighScoreRank = null;
     this.blurNameInput();
@@ -463,24 +466,28 @@ export class Game {
     const remoteScores = await loadRemoteHighScores(MAX_HIGHSCORES, courseId);
     if (!remoteScores) return;
     if (courseId !== this.currentCourse().id) return;
-    this.highScores = this.mergeHighScores(remoteScores);
+    this.highScores = this.mergeHighScores(remoteScores, isRemoteHighScoresConfigured());
     this.saveHighScores();
   }
 
   private async syncHighScores(entry: HighScoreEntry): Promise<void> {
     const courseId = this.currentCourse().id;
     const saved = await saveRemoteHighScore(entry, courseId);
-    if (!saved) return;
+    if (!saved) {
+      await this.refreshHighScores();
+      return;
+    }
     const remoteScores = await loadRemoteHighScores(MAX_HIGHSCORES, courseId);
     if (!remoteScores) return;
     if (courseId !== this.currentCourse().id) return;
-    this.highScores = this.mergeHighScores([entry, ...remoteScores]);
+    this.highScores = this.mergeHighScores([entry, ...remoteScores], true);
     this.saveHighScores();
   }
 
-  private mergeHighScores(remoteScores: HighScoreEntry[]): HighScoreEntry[] {
+  private mergeHighScores(remoteScores: HighScoreEntry[], remoteAuthoritative = false): HighScoreEntry[] {
     const seen = new Set<string>();
-    return [...remoteScores, ...this.highScores]
+    const source = remoteAuthoritative ? remoteScores : [...remoteScores, ...this.highScores];
+    return source
       .filter((entry) => {
         const key = `${entry.name}|${entry.time}|${entry.date}`;
         if (seen.has(key)) return false;

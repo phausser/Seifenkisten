@@ -25,7 +25,7 @@
   - Game loop with requestAnimationFrame
   - State machine (`menu`, `countdown`, `race`, `finish`)
   - Data-driven course configuration
-  - Per-course LocalStorage high scores with optional LootLocker sync
+  - Per-course high scores via LootLocker when configured, otherwise LocalStorage
 
 ## 3. Runtime & Build
 
@@ -95,8 +95,8 @@ VITE_LOOTLOCKER_GAME_VERSION    # optional, defaults to 0.1.0
 - **Finish Line:** Banner + confetti/time travel particles.
 - **Time Attack:** Primary goal is lowest total time.
 - **High Scores:** Top 5 list.
-  - LocalStorage is always used as a per-course cache/fallback.
-  - LootLocker can load and submit scores when configured; course id is stored in metadata.
+  - LootLocker is authoritative when configured; course id is stored in metadata.
+  - LocalStorage is used as a per-course cache only for confirmed remote lists, or as the local store when LootLocker is not configured.
   - Shows time, date, and 3-letter name.
 
 ### Courses
@@ -201,7 +201,7 @@ Complete:
 - Three data-driven courses with procedural track and obstacle placement
 - Collision response and time penalty
 - Timer, progress bar, countdown, finish flow
-- Per-course local high scores and optional LootLocker sync
+- Per-course high scores via LootLocker or LocalStorage fallback
 - Touch controls and mobile name input
 - Web Audio effects, dust, speed lines, ripple, flowers, birds
 

@@ -4,7 +4,7 @@ Ein 2D-Top-Down-Seifenkisten-Rennspiel, gebaut mit HTML5 Canvas, TypeScript und 
 
 ## Spielidee
 
-Steuere deine Seifenkiste einen Hang hinunter, drifte durch Kurven, weiche Heuballen und Reifen aus und erreiche das Ziel so schnell wie möglich. Kollisionen kosten Zeit. Es gibt drei Kurse mit eigenen Bestzeiten; LootLocker synchronisiert sie optional online, LocalStorage bleibt als lokaler Cache/Fallback aktiv.
+Steuere deine Seifenkiste einen Hang hinunter, drifte durch Kurven, weiche Heuballen und Reifen aus und erreiche das Ziel so schnell wie möglich. Kollisionen kosten Zeit. Es gibt drei Kurse mit eigenen Bestzeiten; LootLocker synchronisiert sie optional online, LocalStorage speichert sonst lokal.
 
 ## Features
 
@@ -12,7 +12,7 @@ Steuere deine Seifenkiste einen Hang hinunter, drifte durch Kurven, weiche Heuba
 - Prozedurale Catmull-Rom-Strecken mit kursabhängiger Breite, Länge und Kurvenstärke
 - Eigene Fahrzeugphysik mit Schwerkraft, Grip, Drift und Bremsen
 - Fahrzeug-Setup im Menü: Gewicht, Lenkung, Aerodynamik und Farbe
-- Top-5-Highscores pro Kurs: `localStorage` plus optionale LootLocker-Synchronisierung
+- Top-5-Highscores pro Kurs: LootLocker wenn konfiguriert, sonst `localStorage`
 - Touch-Steuerung und mobile Namenseingabe
 
 ## Installation
@@ -28,7 +28,7 @@ npm run preview   # lokalen Produktions-Build testen
 
 ## Optionale Online-Bestenliste
 
-Ohne Konfiguration nutzt das Spiel lokale Highscores. Sobald LootLocker konfiguriert ist, werden Scores zusätzlich online geladen und gespeichert; `localStorage` bleibt als kursgetrennter Cache/Fallback aktiv, damit Zeiten bei Netzwerk- oder API-Problemen nicht verloren gehen. Für LootLocker eine `.env.local` anlegen:
+Ohne Konfiguration nutzt das Spiel lokale Highscores. Sobald LootLocker konfiguriert ist, ist LootLocker die autoritative Score-Quelle; `localStorage` spiegelt dann nur bestätigte Remote-Listen als Cache. Für LootLocker eine `.env.local` anlegen:
 
 ```
 VITE_LOOTLOCKER_API_KEY=dein_api_key
