@@ -28,15 +28,17 @@ npm run preview   # lokalen Produktions-Build testen
 
 ## Optionale Online-Bestenliste
 
-Ohne Konfiguration nutzt das Spiel lokale Highscores. Sobald LootLocker konfiguriert ist, ist LootLocker die autoritative Score-Quelle; `localStorage` spiegelt dann nur bestätigte Remote-Listen als Cache. Für LootLocker eine `.env.local` anlegen:
+Ohne Konfiguration nutzt das Spiel lokale Highscores. Sobald LootLocker konfiguriert ist, nutzt jeder Kurs sein eigenes LootLocker-Leaderboard; `localStorage` spiegelt die Remote-Listen als Cache. Für LootLocker eine `.env.local` anlegen:
 
 ```
 VITE_LOOTLOCKER_API_KEY=dein_api_key
-VITE_LOOTLOCKER_LEADERBOARD_KEY=dein_leaderboard_key
 # optional:
 VITE_LOOTLOCKER_API_BASE=https://api.lootlocker.io/game
 VITE_LOOTLOCKER_GAME_VERSION=0.1.0
 ```
+
+Die Leaderboard-Keys sind fest im Spiel zugeordnet:
+`time_drift`, `serpentinen`, `sprintstrecke`.
 
 ## Steuerung
 

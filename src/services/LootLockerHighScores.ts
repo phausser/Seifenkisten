@@ -23,6 +23,11 @@ const DEFAULT_API_BASE = 'https://api.lootlocker.io/game';
 const DEVICE_ID_KEY = 'seifenkisten.lootlocker.device.v1';
 const SESSION_KEY = 'seifenkisten.lootlocker.session.v1';
 const SCORE_BASE = 24 * 60 * 60 * 1000;
+const LEADERBOARD_KEYS: Record<string, string> = {
+  'time-drift': 'time_drift',
+  serpentinen: 'serpentinen',
+  sprint: 'sprintstrecke',
+};
 
 let sessionPromise: Promise<LootLockerSession | null> | null = null;
 
@@ -34,12 +39,12 @@ function getApiKey(): string {
   return import.meta.env.VITE_LOOTLOCKER_API_KEY?.trim() || '';
 }
 
-function getLeaderboardKey(): string {
-  return import.meta.env.VITE_LOOTLOCKER_LEADERBOARD_KEY?.trim() || '';
+function getLeaderboardKey(courseId: string): string {
+  return LEADERBOARD_KEYS[courseId] ?? '';
 }
 
 function isConfigured(): boolean {
-  return getApiKey() !== '' && getLeaderboardKey() !== '';
+  return getApiKey() !== '';
 }
 
 export function isRemoteHighScoresConfigured(): boolean {
@@ -208,18 +213,29 @@ function sortEntries(entries: HighScoreEntry[]): HighScoreEntry[] {
     .slice(0, entries.length);
 }
 
-function filterCourse(entries: HighScoreEntry[], courseId: string): HighScoreEntry[] {
-  return entries.filter((entry) => entry.courseId === courseId);
+function parseLeaderboardItems(
+  items: LootLockerLeaderboardItem[],
+  count: number,
+  courseId: string,
+): HighScoreEntry[] {
+  return sortEntries(
+    items
+      .map((item) => parseEntry(item))
+      .filter((entry): entry is HighScoreEntry => entry !== null)
+      .map((entry) => ({ ...entry, courseId })),
+  ).slice(0, count);
 }
 
 export async function loadRemoteHighScores(count: number, courseId: string): Promise<HighScoreEntry[] | null> {
+  const leaderboardKey = getLeaderboardKey(courseId);
+  if (!leaderboardKey) return null;
   const session = await ensureSession();
   if (!session) return null;
-  const remoteCount = Math.max(50, count * 10);
+  const remoteCount = count;
 
   try {
     const response = await fetch(
-      `${getApiBase()}/leaderboards/${getLeaderboardKey()}/list?count=${remoteCount}`,
+      `${getApiBase()}/leaderboards/${leaderboardKey}/list?count=${remoteCount}`,
       {
         headers: {
           'x-session-token': session.sessionToken,
@@ -232,41 +248,35 @@ export async function loadRemoteHighScores(count: number, courseId: string): Pro
       const fresh = await ensureSession(true);
       if (!fresh) return null;
       const retry = await fetch(
-        `${getApiBase()}/leaderboards/${getLeaderboardKey()}/list?count=${remoteCount}`,
+        `${getApiBase()}/leaderboards/${leaderboardKey}/list?count=${remoteCount}`,
         { headers: { 'x-session-token': fresh.sessionToken } },
       );
       if (!retry.ok) return null;
       const retryData = await retry.json() as { items?: LootLockerLeaderboardItem[] };
       if (!Array.isArray(retryData.items)) return [];
-      return filterCourse(sortEntries(
-        retryData.items
-          .map((item) => parseEntry(item))
-          .filter((entry): entry is HighScoreEntry => entry !== null),
-      ), courseId).slice(0, count);
+      return parseLeaderboardItems(retryData.items, count, courseId);
     }
     if (!response.ok) return null;
 
     const data = await response.json() as { items?: LootLockerLeaderboardItem[] };
     if (!Array.isArray(data.items)) return [];
 
-    return filterCourse(sortEntries(
-      data.items
-        .map((item) => parseEntry(item))
-        .filter((entry): entry is HighScoreEntry => entry !== null),
-    ), courseId).slice(0, count);
+    return parseLeaderboardItems(data.items, count, courseId);
   } catch {
     return null;
   }
 }
 
 export async function saveRemoteHighScore(entry: HighScoreEntry, courseId: string): Promise<boolean> {
+  const leaderboardKey = getLeaderboardKey(courseId);
+  if (!leaderboardKey) return false;
   const session = await ensureSession();
   if (!session) return false;
 
   const memberId = `${session.playerId}-${Date.now()}`;
 
   const doSubmit = async (s: { sessionToken: string }, id: string): Promise<Response> =>
-    fetch(`${getApiBase()}/leaderboards/${getLeaderboardKey()}/submit`, {
+    fetch(`${getApiBase()}/leaderboards/${leaderboardKey}/submit`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

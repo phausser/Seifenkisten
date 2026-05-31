@@ -40,10 +40,12 @@ Optional LootLocker environment variables:
 
 ```
 VITE_LOOTLOCKER_API_KEY
-VITE_LOOTLOCKER_LEADERBOARD_KEY
 VITE_LOOTLOCKER_API_BASE        # optional, defaults to https://api.lootlocker.io/game
 VITE_LOOTLOCKER_GAME_VERSION    # optional, defaults to 0.1.0
 ```
+
+LootLocker leaderboard keys are course-specific and fixed in code:
+`time_drift`, `serpentinen`, `sprintstrecke`.
 
 ## 4. Game Mechanics
 
