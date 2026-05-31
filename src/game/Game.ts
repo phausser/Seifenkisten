@@ -1,6 +1,6 @@
 import { InputHandler } from '../utils/InputHandler';
 import { Track } from './Track';
-import { Car, CAR_RADIUS } from './Car';
+import { Car, CAR_NOSE_OFFSET, CAR_RADIUS } from './Car';
 import { placeObstacles, renderObstacle } from './Obstacle';
 import { ParticleSystem } from './ParticleSystem';
 import { AudioSystem } from './AudioSystem';
@@ -28,6 +28,8 @@ const CAM_AHEAD = 180;      // world units camera looks ahead of car
 const HIGHSCORE_KEY = 'seifenkisten.highscores.v1';
 const MAX_HIGHSCORES = 5;
 const RIPPLE_DURATION = 0.48;
+const FINISH_ROLL_SECONDS = 0;
+const POST_FINISH_ROLL_DIST = 180;
 
 // Grass stripe colours — two subtly different greens, stripe = 2× road stripe
 const GRASS_STRIPE = 130;
@@ -35,15 +37,15 @@ const GRASS_STRIPE = 130;
 type SliderKey = 'weight' | 'steering' | 'aero';
 type SliderDef = { key: SliderKey; header: string; lo: string; hi: string; labelY: number; trackY: number };
 const SLIDER_DEFS: ReadonlyArray<SliderDef> = [
-  { key: 'weight',   header: 'GEWICHT',     lo: 'LEICHT', hi: 'SCHWER', labelY: 212, trackY: 236 },
-  { key: 'steering', header: 'LENKUNG',     lo: 'TRÄGE',  hi: 'DIREKT', labelY: 285, trackY: 309 },
-  { key: 'aero',     header: 'AERODYNAMIK', lo: 'RUND',   hi: 'SPITZ',  labelY: 358, trackY: 382 },
+  { key: 'weight', header: 'GEWICHT', lo: 'LEICHT', hi: 'SCHWER', labelY: 212, trackY: 236 },
+  { key: 'steering', header: 'LENKUNG', lo: 'TRÄGE', hi: 'DIREKT', labelY: 285, trackY: 309 },
+  { key: 'aero', header: 'AERODYNAMIK', lo: 'RUND', hi: 'SPITZ', labelY: 358, trackY: 382 },
 ];
 // Compact slider positions for narrow (mobile portrait) layout
 const NARROW_SLIDER_DEFS: ReadonlyArray<SliderDef> = [
-  { key: 'weight',   header: 'GEWICHT',     lo: 'LEICHT', hi: 'SCHWER', labelY: 378, trackY: 396 },
-  { key: 'steering', header: 'LENKUNG',     lo: 'TRÄGE',  hi: 'DIREKT', labelY: 430, trackY: 448 },
-  { key: 'aero',     header: 'AERODYNAMIK', lo: 'RUND',   hi: 'SPITZ',  labelY: 482, trackY: 500 },
+  { key: 'weight', header: 'GEWICHT', lo: 'LEICHT', hi: 'SCHWER', labelY: 378, trackY: 396 },
+  { key: 'steering', header: 'LENKUNG', lo: 'TRÄGE', hi: 'DIREKT', labelY: 430, trackY: 448 },
+  { key: 'aero', header: 'AERODYNAMIK', lo: 'RUND', hi: 'SPITZ', labelY: 482, trackY: 500 },
 ];
 
 /**
@@ -64,7 +66,7 @@ export class Game {
   private obstacles: Obstacle[] = [];
   private particles = new ParticleSystem();
   private audio = new AudioSystem();
-  private birds   = new BirdSystem();
+  private birds = new BirdSystem();
   private flowers = new FlowerSystem();
 
   // Car setup (configured in menu)
@@ -84,6 +86,8 @@ export class Game {
   // Race systems
   private raceTime = 0;
   private finishTime = 0;
+  private finishRollTime = 0;
+  private finishTriggered = false;
   private countdownTime = 3;
   private countdownBeep = 3;
   private highScores: HighScoreEntry[] = [];
@@ -125,11 +129,11 @@ export class Game {
 
     // Menu config UI interactions
     canvas.addEventListener('pointerdown', (e) => {
-      if (this.state === 'menu')   this.onMenuPointerDown(e);
+      if (this.state === 'menu') this.onMenuPointerDown(e);
       if (this.state === 'finish') this.onFinishPointerDown(e);
     });
     canvas.addEventListener('pointermove', (e) => this.onMenuPointerMove(e));
-    canvas.addEventListener('pointerup',   () => { this.draggingSlider = null; });
+    canvas.addEventListener('pointerup', () => { this.draggingSlider = null; });
   }
 
   // ─── Init ──────────────────────────────────────────────────────────────────
@@ -147,6 +151,8 @@ export class Game {
     this.rippleTime = 0;
     this.raceTime = 0;
     this.finishTime = 0;
+    this.finishRollTime = 0;
+    this.finishTriggered = false;
     this.countdownTime = 3;
     this.countdownBeep = 3;
     this.pendingHighScoreRank = null;
@@ -165,9 +171,9 @@ export class Game {
   private resize(): void {
     // Scale only by height — road stays full-size, grass crops horizontally.
     const scale = window.innerHeight / TARGET_H;
-    this.canvas.width  = Math.round(window.innerWidth / scale);
+    this.canvas.width = Math.round(window.innerWidth / scale);
     this.canvas.height = TARGET_H;
-    this.canvas.style.width  = `${window.innerWidth}px`;
+    this.canvas.style.width = `${window.innerWidth}px`;
     this.canvas.style.height = `${window.innerHeight}px`;
   }
 
@@ -254,20 +260,47 @@ export class Game {
       return;
     }
 
-    this.raceTime += dt;
-    this.car.update(dt, this.input.steerAxis, this.input.brakeAxis, this.track);
+    const finishStart = this.finishTriggered ? 0 : this.carNoseFinishProjection();
 
-    // Clamp car at finish
-    if (this.car.dist >= this.track.finishDist) {
-      this.car.dist = this.track.finishDist;
-      this.finishRace();
+    if (this.finishTriggered) {
+      this.finishRollTime += dt;
+    }
+
+    const steer = this.finishTriggered ? 0 : this.input.steerAxis;
+    const brake = this.finishTriggered ? 0 : this.input.brakeAxis;
+    this.car.update(dt, steer, brake, this.track);
+    if (this.finishTriggered) {
+      const maxRollDist = this.track.finishDist + POST_FINISH_ROLL_DIST;
+      if (this.car.dist > maxRollDist) {
+        this.car.stopAtDist(this.track, maxRollDist);
+      }
+    }
+
+    if (!this.finishTriggered) {
+      const finishEnd = this.carNoseFinishProjection();
+      if (finishStart < 0 && finishEnd >= 0) {
+        const frac = -finishStart / (finishEnd - finishStart);
+        this.raceTime += dt * Math.max(0, Math.min(1, frac));
+        this.finishRollTime = dt * (1 - Math.max(0, Math.min(1, frac)));
+        this.finishTriggered = true;
+        this.finishRace();
+        this.audio.finish();
+      } else if (finishEnd >= 0) {
+        this.finishTriggered = true;
+        this.finishRace();
+        this.audio.finish();
+      } else {
+        this.raceTime += dt;
+      }
+    }
+
+    if (this.finishTriggered && this.finishRollTime >= FINISH_ROLL_SECONDS) {
       this.setState('finish');
-      this.audio.finish();
       return;
     }
 
     // ── Collision: obstacles ─────────────────────────────────────────────────
-    if (this.car.frozen <= 0) {
+    if (!this.finishTriggered && this.car.frozen <= 0) {
       for (const obs of this.obstacles) {
         const dx = this.car.worldX - obs.wx;
         const dy = this.car.worldY - obs.wy;
@@ -282,7 +315,7 @@ export class Game {
     }
 
     // ── Collision: road borders ──────────────────────────────────────────────
-    if (this.car.frozen <= 0) {
+    if (!this.finishTriggered && this.car.frozen <= 0) {
       const s = this.track.getSampleAtDist(this.car.dist);
       if (Math.abs(this.car.lateralOffset) > s.halfWidth - CAR_RADIUS) {
         this.triggerCrash();
@@ -290,7 +323,7 @@ export class Game {
     }
 
     // ── Crash feedback decay ─────────────────────────────────────────────────
-    this.shakeAmt  = Math.max(0, this.shakeAmt  - dt * 42);
+    this.shakeAmt = Math.max(0, this.shakeAmt - dt * 42);
     this.rippleTime = Math.max(0, this.rippleTime - dt);
 
     // ── Particle trail ───────────────────────────────────────────────────────
@@ -315,6 +348,15 @@ export class Game {
     // Birds update after camera so screen positions are correct for this frame
     this.birds.update(dt, this.car.worldX, this.car.worldY,
       this.camX, this.camY, this.canvas.width, this.canvas.height);
+  }
+
+  private carNoseFinishProjection(): number {
+    const finish = this.track.getSampleAtDist(this.track.finishDist);
+    const noseX = this.car.worldX + Math.sin(this.car.angle) * CAR_NOSE_OFFSET;
+    const noseY = this.car.worldY - Math.cos(this.car.angle) * CAR_NOSE_OFFSET;
+    const dx = noseX - finish.x;
+    const dy = noseY - finish.y;
+    return dx * finish.tx + dy * finish.ty;
   }
 
   private triggerCrash(): void {
@@ -514,8 +556,8 @@ export class Game {
   private toCanvasCoords(e: PointerEvent): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
     return {
-      x: (e.clientX - rect.left) / rect.width  * this.canvas.width,
-      y: (e.clientY - rect.top)  / rect.height * this.canvas.height,
+      x: (e.clientX - rect.left) / rect.width * this.canvas.width,
+      y: (e.clientY - rect.top) / rect.height * this.canvas.height,
     };
   }
 
@@ -573,8 +615,7 @@ export class Game {
   private onFinishPointerDown(e: PointerEvent): void {
     if (this.pendingHighScoreRank === null) return;
     const { y } = this.toCanvasCoords(e);
-    const H = this.canvas.height;
-    const cy = H * 0.5;
+    const layout = this.getFinishLayout();
 
     // Any tap on the finish screen: focus the input (iOS requires this to be
     // called synchronously inside a user-gesture handler to show the keyboard)
@@ -583,9 +624,52 @@ export class Game {
     }
 
     // OK button hit area
-    if (y >= cy + 172 && y <= cy + 228) {
+    if (y >= layout.okY && y <= layout.okY + layout.okH) {
       this.commitPendingHighScore();
     }
+  }
+
+  private getFinishLayout(): {
+    cx: number;
+    cy: number;
+    panelW: number;
+    panelH: number;
+    panelY: number;
+    titleY: number;
+    timeY: number;
+    bestLabelY: number;
+    bestY: number;
+    newBestY: number;
+    nameY: number;
+    okY: number;
+    okH: number;
+  } {
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+    const cx = W * 0.5;
+    const cy = H * 0.5;
+    const panelW = Math.min(560, W - 24);
+    const compact = panelW < 420;
+    const hasNameEntry = this.pendingHighScoreRank !== null;
+    const panelH = hasNameEntry ? (compact ? 326 : 340) : 300;
+    const panelY = hasNameEntry && compact ? 172 : cy - 130;
+    const contentTop = panelY + (compact ? 54 : 60);
+
+    return {
+      cx,
+      cy,
+      panelW,
+      panelH,
+      panelY,
+      titleY: contentTop,
+      timeY: contentTop + (compact ? 38 : 44),
+      bestLabelY: contentTop + (compact ? 70 : 78),
+      bestY: contentTop + (compact ? 100 : 110),
+      newBestY: contentTop + (compact ? 132 : 144),
+      nameY: contentTop + (compact ? 164 : 180),
+      okY: panelY + panelH - (compact ? 62 : 72),
+      okH: compact ? 42 : 46,
+    };
   }
 
   private getMenuLayout(W: number) {
@@ -603,7 +687,7 @@ export class Game {
       const trackW = Math.min(220, W - 80);
       const trackX = cx - trackW / 2;
       const colorSpacing = 34;
-      const colorStartX  = cx - (CAR_COLORS.length - 1) / 2 * colorSpacing;
+      const colorStartX = cx - (CAR_COLORS.length - 1) / 2 * colorSpacing;
       const startBtnW = Math.min(300, W - 40);
       return {
         cx, narrow,
@@ -633,7 +717,7 @@ export class Game {
     })();
     const trackX = rcx - trackW / 2;
     const colorSpacing = 38;
-    const colorStartX  = rcx - (CAR_COLORS.length - 1) / 2 * colorSpacing;
+    const colorStartX = rcx - (CAR_COLORS.length - 1) / 2 * colorSpacing;
     const courseX = lcx - 190;
     const courseW = (rcx + 190) - courseX;
     return {
@@ -988,7 +1072,7 @@ export class Game {
       ctx.fillText('Noch keine Zeiten.', lcx, 260);
     } else {
       const rowH = 38;
-      const top  = 230;
+      const top = 230;
       for (let i = 0; i < this.highScores.length; i++) {
         const score = this.highScores[i];
         const y = top + i * rowH;
@@ -1226,7 +1310,8 @@ export class Game {
   private renderFinish(): void {
     const { ctx, canvas } = this;
     const W = canvas.width, H = canvas.height;
-    const cx = W * 0.5, cy = H * 0.5;
+    const layout = this.getFinishLayout();
+    const { cx, cy, panelW, panelH, panelY } = layout;
 
     // Show track in background (frozen at finish position)
     ctx.fillStyle = this.currentCourse().grassDark;
@@ -1234,12 +1319,9 @@ export class Game {
     this.track.render(ctx, this.camX, this.camY, W, H);
     this.car.render(ctx, this.camX, this.camY, W, H);
 
-    // Responsive panel
-    const panelW = Math.min(560, W - 24);
-    const panelH = this.pendingHighScoreRank !== null ? 340 : 300;
     ctx.fillStyle = 'rgba(245,242,235,0.92)';
     ctx.beginPath();
-    ctx.roundRect(cx - panelW / 2, cy - 130, panelW, panelH, 8);
+    ctx.roundRect(cx - panelW / 2, panelY, panelW, panelH, 8);
     ctx.fill();
     ctx.strokeStyle = '#111111';
     ctx.lineWidth = 3;
@@ -1251,37 +1333,37 @@ export class Game {
     const titleSize = panelW < 360 ? 36 : 52;
     ctx.font = `800 ${titleSize}px "Open Sans", sans-serif`;
     ctx.fillStyle = '#111111';
-    ctx.fillText('ZIEL ERREICHT!', cx, cy - 70);
+    ctx.fillText('ZIEL ERREICHT!', cx, layout.titleY);
 
     // Current time
     ctx.font = '800 32px "Open Sans", sans-serif';
     ctx.fillStyle = '#111111';
-    ctx.fillText(this.formatTime(this.finishTime), cx, cy - 26);
+    ctx.fillText(this.formatTime(this.finishTime), cx, layout.timeY);
 
     // Best time
     const best = this.highScores[0];
     ctx.font = '400 13px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
-    ctx.fillText('Bestzeit', cx, cy + 8);
+    ctx.fillText('Bestzeit', cx, layout.bestLabelY);
     ctx.font = '800 32px "Open Sans", sans-serif';
     ctx.fillStyle = best ? '#555550' : '#c9c2b4';
-    ctx.fillText(best ? this.formatTime(best.time) : '—:——.——', cx, cy + 40);
+    ctx.fillText(best ? this.formatTime(best.time) : '—:——.——', cx, layout.bestY);
 
     if (this.pendingHighScoreRank !== null) {
       ctx.font = '700 18px "Open Sans", sans-serif';
       ctx.fillStyle = '#111111';
-      ctx.fillText(`Neue Bestzeit #${this.pendingHighScoreRank + 1}`, cx, cy + 74);
-      this.renderNameEntry(cx, cy + 110);
+      ctx.fillText(`Neue Bestzeit #${this.pendingHighScoreRank + 1}`, cx, layout.newBestY);
+      this.renderNameEntry(cx, layout.nameY);
 
       // OK button (touch submit)
       const okW = Math.min(200, panelW - 40);
       ctx.fillStyle = '#111111';
       ctx.beginPath();
-      ctx.roundRect(cx - okW / 2, cy + 172, okW, 46, 6);
+      ctx.roundRect(cx - okW / 2, layout.okY, okW, layout.okH, 6);
       ctx.fill();
       ctx.font = '700 18px "Open Sans", sans-serif';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText('OK ✓', cx, cy + 201);
+      ctx.fillText('OK', cx, layout.okY + layout.okH * 0.66);
 
       ctx.restore();
       return;
@@ -1364,7 +1446,7 @@ export class Game {
 
       ctx.font = '800 32px "Open Sans", sans-serif';
       ctx.fillStyle = '#111111';
-      ctx.fillText(this.formatTime(this.raceTime), 10, 78);
+      ctx.fillText(this.formatTime(this.finishTriggered ? this.finishTime : this.raceTime), 10, 78);
 
       const best = this.highScores[0];
       ctx.font = '400 13px "Open Sans", sans-serif';

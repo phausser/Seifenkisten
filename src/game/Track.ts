@@ -46,7 +46,6 @@ export class Track {
   private placeFinishBarrier(seed: number): void {
     const BARRIER_COUNT = 7;
     const rng = new Rng(seed);
-    // Sample at the very end of the road, then project forward into the grass.
     const s = this.getSampleAtDist(this.totalLength);
     const overrun = BALE_R;
     const baseX = s.x + s.tx * overrun;

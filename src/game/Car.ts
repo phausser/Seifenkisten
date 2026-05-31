@@ -17,6 +17,7 @@ const FRONT_Y = -BODY_H / 2 + 15;
 
 /** Bounding circle radius used for collision detection. */
 export const CAR_RADIUS = 18;
+export const CAR_NOSE_OFFSET = BODY_H / 2;
 
 /**
  * The player's soapbox car – Phase 2 full physics.
@@ -257,6 +258,16 @@ export class Car {
 
   /** Car color – forwarded to the particle system. */
   get color(): string { return this.cfg.color; }
+
+  stopAtDist(track: Track, dist: number): void {
+    const s = track.getSampleAtDist(dist);
+    this.dist = dist;
+    this.worldX = s.x + s.nx * this.lateralOffset;
+    this.worldY = s.y + s.ny * this.lateralOffset;
+    this.vx = 0;
+    this.vy = 0;
+    this.angularVel = 0;
+  }
 
   // ─── Rendering ─────────────────────────────────────────────────────────────
 
