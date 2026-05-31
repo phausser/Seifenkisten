@@ -7,7 +7,7 @@
 - **Language:** TypeScript (strict, `noUnusedLocals`, `noImplicitReturns`)
 - **Rendering:** HTML5 Canvas 2D — no external game engine
 - **Physics:** Custom (no libraries)
-- **Build:** Vite 5
+- **Build:** Vite 8
 - **Storage:** per-course LootLocker high scores when configured; LocalStorage fallback otherwise
 - **Target:** 720px logical height, adaptive width, 60 FPS, small dependency footprint
 

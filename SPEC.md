@@ -18,7 +18,7 @@
 - **Languages:** HTML5, TypeScript
 - **Rendering:** HTML5 Canvas (2D top-down context)
 - **Physics:** Custom simple rigid body physics (no external engine)
-- **Build:** Vite 5
+- **Build:** Vite 8
 - **Dependencies:** Runtime is vanilla browser APIs; dev dependencies are Vite and TypeScript.
 - **Architecture:**
   - Small class-based subsystems
@@ -32,6 +32,7 @@
 - `npm run dev`: Vite dev server on port 5173.
 - `npm run build`: `tsc && vite build`.
 - `npm run preview`: serve the production build locally.
+- Node.js 20.19+ is required by Vite 8.
 - TypeScript uses `strict`, `noUnusedLocals`, `noUnusedParameters`, and `noImplicitReturns`.
 - The production `base` path is relative by default and is adjusted in CI for GitHub Pages via `GITHUB_REPOSITORY`.
 

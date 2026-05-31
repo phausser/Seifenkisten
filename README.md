@@ -17,7 +17,7 @@ Steuere deine Seifenkiste einen Hang hinunter, drifte durch Kurven, weiche Heuba
 
 ## Installation
 
-Voraussetzung: Node.js 20 oder neuer.
+Voraussetzung: Node.js 20.19 oder neuer.
 
 ```bash
 npm install
