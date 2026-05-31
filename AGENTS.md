@@ -8,7 +8,7 @@
 - **Rendering:** HTML5 Canvas 2D — no external game engine
 - **Physics:** Custom (no libraries)
 - **Build:** Vite 8
-- **Storage:** per-course LootLocker high scores when configured; LocalStorage fallback otherwise
+- **Storage:** per-course LocalStorage high scores with optional LootLocker online sync
 - **Target:** 720px logical height, adaptive width, 60 FPS, small dependency footprint
 
 ## File Structure
@@ -95,7 +95,7 @@ Running features:
 - Crash response: bounce lateralOffset, 0.45 s freeze, red flash, "+3s" popup and time penalty
 - All cast shadows are dark, soft blurred offset shapes using `ctx.filter = blur(...)`; no outlines
 - Sparse dust trail behind the car and speed lines at high velocity
-- Start countdown, race timer, bottom progress bar, finish time panel, per-course top-5 highscores via LootLocker or LocalStorage fallback, and 3-letter name entry for places 1–5
+- Start countdown, race timer, bottom progress bar, finish time panel, per-course LocalStorage top-5 highscores, optional LootLocker sync, and 3-letter name entry for places 1–5
 - Menu course selector, car setup sliders for weight, steering, aero, plus color selection
 - Web Audio effects for start/countdown/crash/finish/save, crash ripple, canvas touch controls, mobile name input, particle cap, deterministic speed lines
 - Ambient flowers and birds

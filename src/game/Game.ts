@@ -8,7 +8,6 @@ import { BirdSystem } from './BirdSystem';
 import { FlowerSystem } from './FlowerSystem';
 import type { Obstacle } from './Obstacle';
 import {
-  isRemoteHighScoresConfigured,
   loadRemoteHighScores,
   saveRemoteHighScore,
   type HighScoreEntry,
@@ -439,10 +438,7 @@ export class Game {
 
   private mergeHighScores(remoteScores: HighScoreEntry[]): HighScoreEntry[] {
     const seen = new Set<string>();
-    const sources = isRemoteHighScoresConfigured()
-      ? remoteScores
-      : [...remoteScores, ...this.highScores];
-    return sources
+    return [...remoteScores, ...this.highScores]
       .filter((entry) => {
         const key = `${entry.name}|${entry.time}|${entry.date}`;
         if (seen.has(key)) return false;
@@ -472,8 +468,6 @@ export class Game {
   }
 
   private loadHighScores(): HighScoreEntry[] {
-    if (isRemoteHighScoresConfigured()) return [];
-
     try {
       const raw = localStorage.getItem(this.highScoreKey())
         ?? (this.currentCourse().id === COURSES[0].id ? localStorage.getItem(HIGHSCORE_KEY) : null);
@@ -491,8 +485,6 @@ export class Game {
   }
 
   private saveHighScores(): void {
-    if (isRemoteHighScoresConfigured()) return;
-
     try {
       localStorage.setItem(this.highScoreKey(), JSON.stringify(this.highScores));
     } catch {
