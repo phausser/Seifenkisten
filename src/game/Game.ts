@@ -452,9 +452,7 @@ export class Game {
     this.highScores.push(entry);
     this.highScores.sort((a, b) => a.time - b.time);
     this.highScores = this.highScores.slice(0, MAX_HIGHSCORES);
-    if (!isRemoteHighScoresConfigured()) {
-      this.saveHighScores();
-    }
+    this.saveHighScores();
     void this.syncHighScores(entry);
     this.pendingHighScoreRank = null;
     this.blurNameInput();
@@ -474,7 +472,11 @@ export class Game {
     const courseId = this.currentCourse().id;
     const saved = await saveRemoteHighScore(entry, courseId);
     if (!saved) {
-      await this.refreshHighScores();
+      const remoteScores = await loadRemoteHighScores(MAX_HIGHSCORES, courseId);
+      if (!remoteScores) return;
+      if (courseId !== this.currentCourse().id) return;
+      this.highScores = this.mergeHighScores(remoteScores, false);
+      this.saveHighScores();
       return;
     }
     const remoteScores = await loadRemoteHighScores(MAX_HIGHSCORES, courseId);
@@ -674,7 +676,7 @@ export class Game {
       bestY: contentTop + (compact ? 100 : 110),
       newBestY: contentTop + (compact ? 132 : 144),
       nameY: contentTop + (compact ? 164 : 180),
-      okY: panelY + panelH - (compact ? 62 : 72),
+      okY: panelY + panelH - (compact ? 52 : 58),
       okH: compact ? 42 : 46,
     };
   }
