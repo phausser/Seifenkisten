@@ -2,6 +2,7 @@ export interface HighScoreEntry {
   name: string;
   time: number;
   date: string;
+  courseId?: string;
 }
 
 interface LootLockerSession {
@@ -39,6 +40,10 @@ function getLeaderboardKey(): string {
 
 function isConfigured(): boolean {
   return getApiKey() !== '' && getLeaderboardKey() !== '';
+}
+
+export function isRemoteHighScoresConfigured(): boolean {
+  return isConfigured();
 }
 
 function readStorage(key: string): string | null {
@@ -167,6 +172,7 @@ function normalizeEntry(entry: Partial<HighScoreEntry> | null | undefined): High
     name: normalizeName(entry.name),
     time: entry.time,
     date: entry.date,
+    courseId: typeof entry.courseId === 'string' ? entry.courseId : undefined,
   };
 }
 
@@ -202,13 +208,18 @@ function sortEntries(entries: HighScoreEntry[]): HighScoreEntry[] {
     .slice(0, entries.length);
 }
 
-export async function loadRemoteHighScores(count: number): Promise<HighScoreEntry[] | null> {
+function filterCourse(entries: HighScoreEntry[], courseId: string): HighScoreEntry[] {
+  return entries.filter((entry) => entry.courseId === courseId);
+}
+
+export async function loadRemoteHighScores(count: number, courseId: string): Promise<HighScoreEntry[] | null> {
   const session = await ensureSession();
   if (!session) return null;
+  const remoteCount = Math.max(50, count * 10);
 
   try {
     const response = await fetch(
-      `${getApiBase()}/leaderboards/${getLeaderboardKey()}/list?count=${count}`,
+      `${getApiBase()}/leaderboards/${getLeaderboardKey()}/list?count=${remoteCount}`,
       {
         headers: {
           'x-session-token': session.sessionToken,
@@ -221,34 +232,34 @@ export async function loadRemoteHighScores(count: number): Promise<HighScoreEntr
       const fresh = await ensureSession(true);
       if (!fresh) return null;
       const retry = await fetch(
-        `${getApiBase()}/leaderboards/${getLeaderboardKey()}/list?count=${count}`,
+        `${getApiBase()}/leaderboards/${getLeaderboardKey()}/list?count=${remoteCount}`,
         { headers: { 'x-session-token': fresh.sessionToken } },
       );
       if (!retry.ok) return null;
       const retryData = await retry.json() as { items?: LootLockerLeaderboardItem[] };
       if (!Array.isArray(retryData.items)) return [];
-      return sortEntries(
+      return filterCourse(sortEntries(
         retryData.items
           .map((item) => parseEntry(item))
           .filter((entry): entry is HighScoreEntry => entry !== null),
-      ).slice(0, count);
+      ), courseId).slice(0, count);
     }
     if (!response.ok) return null;
 
     const data = await response.json() as { items?: LootLockerLeaderboardItem[] };
     if (!Array.isArray(data.items)) return [];
 
-    return sortEntries(
+    return filterCourse(sortEntries(
       data.items
         .map((item) => parseEntry(item))
         .filter((entry): entry is HighScoreEntry => entry !== null),
-    ).slice(0, count);
+    ), courseId).slice(0, count);
   } catch {
     return null;
   }
 }
 
-export async function saveRemoteHighScore(entry: HighScoreEntry): Promise<boolean> {
+export async function saveRemoteHighScore(entry: HighScoreEntry, courseId: string): Promise<boolean> {
   const session = await ensureSession();
   if (!session) return false;
 
@@ -263,7 +274,7 @@ export async function saveRemoteHighScore(entry: HighScoreEntry): Promise<boolea
       },
       body: JSON.stringify({
         member_id: id,
-        metadata: JSON.stringify({ ...entry, name: normalizeName(entry.name) }),
+        metadata: JSON.stringify({ ...entry, name: normalizeName(entry.name), courseId }),
         score: toLeaderboardScore(entry.time),
       }),
     });

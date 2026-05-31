@@ -8,6 +8,7 @@ import { BirdSystem } from './BirdSystem';
 import { FlowerSystem } from './FlowerSystem';
 import type { Obstacle } from './Obstacle';
 import {
+  isRemoteHighScoresConfigured,
   loadRemoteHighScores,
   saveRemoteHighScore,
   type HighScoreEntry,
@@ -18,6 +19,7 @@ import {
   DEFAULT_SETUP,
   type CarSetup,
 } from './CarConfig';
+import { COURSES, type CourseConfig } from './CourseConfig';
 
 export type GameState = 'menu' | 'countdown' | 'race' | 'finish';
 
@@ -30,22 +32,19 @@ const RIPPLE_DURATION = 0.48;
 
 // Grass stripe colours — two subtly different greens, stripe = 2× road stripe
 const GRASS_STRIPE = 130;
-const GRASS_LIGHT  = '#427b3f';
-const GRASS_DARK   = '#386e35';
-
 // Menu slider definitions
 type SliderKey = 'weight' | 'steering' | 'aero';
 type SliderDef = { key: SliderKey; header: string; lo: string; hi: string; labelY: number; trackY: number };
 const SLIDER_DEFS: ReadonlyArray<SliderDef> = [
-  { key: 'weight',   header: 'GEWICHT',     lo: 'LEICHT', hi: 'SCHWER', labelY: 170, trackY: 194 },
-  { key: 'steering', header: 'LENKUNG',     lo: 'TRÄGE',  hi: 'DIREKT', labelY: 243, trackY: 267 },
-  { key: 'aero',     header: 'AERODYNAMIK', lo: 'RUND',   hi: 'SPITZ',  labelY: 316, trackY: 340 },
+  { key: 'weight',   header: 'GEWICHT',     lo: 'LEICHT', hi: 'SCHWER', labelY: 212, trackY: 236 },
+  { key: 'steering', header: 'LENKUNG',     lo: 'TRÄGE',  hi: 'DIREKT', labelY: 285, trackY: 309 },
+  { key: 'aero',     header: 'AERODYNAMIK', lo: 'RUND',   hi: 'SPITZ',  labelY: 358, trackY: 382 },
 ];
 // Compact slider positions for narrow (mobile portrait) layout
 const NARROW_SLIDER_DEFS: ReadonlyArray<SliderDef> = [
-  { key: 'weight',   header: 'GEWICHT',     lo: 'LEICHT', hi: 'SCHWER', labelY: 334, trackY: 352 },
-  { key: 'steering', header: 'LENKUNG',     lo: 'TRÄGE',  hi: 'DIREKT', labelY: 390, trackY: 408 },
-  { key: 'aero',     header: 'AERODYNAMIK', lo: 'RUND',   hi: 'SPITZ',  labelY: 446, trackY: 464 },
+  { key: 'weight',   header: 'GEWICHT',     lo: 'LEICHT', hi: 'SCHWER', labelY: 378, trackY: 396 },
+  { key: 'steering', header: 'LENKUNG',     lo: 'TRÄGE',  hi: 'DIREKT', labelY: 430, trackY: 448 },
+  { key: 'aero',     header: 'AERODYNAMIK', lo: 'RUND',   hi: 'SPITZ',  labelY: 482, trackY: 500 },
 ];
 
 /**
@@ -71,6 +70,7 @@ export class Game {
 
   // Car setup (configured in menu)
   private setup: CarSetup = { ...DEFAULT_SETUP };
+  private courseIndex = 0;
   private draggingSlider: number | null = null;
   private startButtonTouched = false;
 
@@ -137,11 +137,12 @@ export class Game {
 
   /** (Re-)create track, car and obstacles. Called on first load and "race again". */
   private initRace(): void {
-    this.track = new Track();
+    const course = this.currentCourse();
+    this.track = new Track(course);
     this.car = new Car(this.track, buildCarConfig(this.setup), this.setup);
-    this.obstacles = placeObstacles(this.track, 0xA5C3);
-    this.birds.place(this.track, 0xB1D5);
-    this.flowers.place(this.track, 0xD4F2);
+    this.obstacles = placeObstacles(this.track, course.obstacleSeed);
+    this.birds.place(this.track, course.birdSeed);
+    this.flowers.place(this.track, course.flowerSeed);
     this.particles.clear();
     this.shakeAmt = 0;
     this.rippleTime = 0;
@@ -154,6 +155,10 @@ export class Game {
     const s = this.track.getSampleAtDist(0);
     this.camX = s.x;
     this.camY = s.y + CAM_AHEAD;
+  }
+
+  private currentCourse(): CourseConfig {
+    return COURSES[this.courseIndex] ?? COURSES[0];
   }
 
   // ─── Sizing ────────────────────────────────────────────────────────────────
@@ -211,6 +216,12 @@ export class Game {
   }
 
   private updateMenu(_dt: number): void {
+    if (this.input.wasPressed('ArrowLeft') || this.input.wasPressed('KeyQ')) {
+      this.setCourseIndex(this.courseIndex - 1);
+    }
+    if (this.input.wasPressed('ArrowRight') || this.input.wasPressed('KeyE')) {
+      this.setCourseIndex(this.courseIndex + 1);
+    }
     if (this.input.wasPressed('Space') || this.input.wasPressed('Enter') || this.startButtonTouched) {
       this.startButtonTouched = false;
       this.audio.resume();
@@ -394,6 +405,7 @@ export class Game {
       name: (this.pendingName || '---').slice(0, 3).toUpperCase(),
       time: this.finishTime,
       date: new Date().toISOString(),
+      courseId: this.currentCourse().id,
     };
     this.highScores.push(entry);
     this.highScores.sort((a, b) => a.time - b.time);
@@ -406,24 +418,31 @@ export class Game {
   }
 
   private async refreshHighScores(): Promise<void> {
-    const remoteScores = await loadRemoteHighScores(MAX_HIGHSCORES);
+    const courseId = this.currentCourse().id;
+    const remoteScores = await loadRemoteHighScores(MAX_HIGHSCORES, courseId);
     if (!remoteScores) return;
+    if (courseId !== this.currentCourse().id) return;
     this.highScores = this.mergeHighScores(remoteScores);
     this.saveHighScores();
   }
 
   private async syncHighScores(entry: HighScoreEntry): Promise<void> {
-    const saved = await saveRemoteHighScore(entry);
+    const courseId = this.currentCourse().id;
+    const saved = await saveRemoteHighScore(entry, courseId);
     if (!saved) return;
-    const remoteScores = await loadRemoteHighScores(MAX_HIGHSCORES);
+    const remoteScores = await loadRemoteHighScores(MAX_HIGHSCORES, courseId);
     if (!remoteScores) return;
-    this.highScores = this.mergeHighScores(remoteScores);
+    if (courseId !== this.currentCourse().id) return;
+    this.highScores = this.mergeHighScores([entry, ...remoteScores]);
     this.saveHighScores();
   }
 
   private mergeHighScores(remoteScores: HighScoreEntry[]): HighScoreEntry[] {
     const seen = new Set<string>();
-    return [...remoteScores, ...this.highScores]
+    const sources = isRemoteHighScoresConfigured()
+      ? remoteScores
+      : [...remoteScores, ...this.highScores];
+    return sources
       .filter((entry) => {
         const key = `${entry.name}|${entry.time}|${entry.date}`;
         if (seen.has(key)) return false;
@@ -448,12 +467,16 @@ export class Game {
       name: (entry.name.trim().toUpperCase().replace(/\s+/g, '') || '---').slice(0, 3),
       time: entry.time,
       date: entry.date,
+      courseId: this.currentCourse().id,
     };
   }
 
   private loadHighScores(): HighScoreEntry[] {
+    if (isRemoteHighScoresConfigured()) return [];
+
     try {
-      const raw = localStorage.getItem(HIGHSCORE_KEY);
+      const raw = localStorage.getItem(this.highScoreKey())
+        ?? (this.currentCourse().id === COURSES[0].id ? localStorage.getItem(HIGHSCORE_KEY) : null);
       if (!raw) return [];
       const parsed = JSON.parse(raw) as Partial<HighScoreEntry>[];
       if (!Array.isArray(parsed)) return [];
@@ -468,11 +491,17 @@ export class Game {
   }
 
   private saveHighScores(): void {
+    if (isRemoteHighScoresConfigured()) return;
+
     try {
-      localStorage.setItem(HIGHSCORE_KEY, JSON.stringify(this.highScores));
+      localStorage.setItem(this.highScoreKey(), JSON.stringify(this.highScores));
     } catch {
       // Ignore private-mode/quota failures; gameplay should continue.
     }
+  }
+
+  private highScoreKey(): string {
+    return `${HIGHSCORE_KEY}.${this.currentCourse().id}`;
   }
 
   private formatTime(seconds: number): string {
@@ -588,8 +617,9 @@ export class Game {
         cx, narrow,
         lcx: cx, rcx: cx,
         trackW, trackX, colorSpacing, colorStartX,
-        colorY: 510, colorR: 14,
-        startBtnY: 556, startBtnW, startBtnH: 52,
+        courseX: cx - W * 0.46, courseY: 116, courseW: W * 0.92,
+        colorY: 546, colorR: 13,
+        startBtnY: 594, startBtnW, startBtnH: 52,
         sliderDefs: NARROW_SLIDER_DEFS,
       };
     }
@@ -612,11 +642,14 @@ export class Game {
     const trackX = rcx - trackW / 2;
     const colorSpacing = 38;
     const colorStartX  = rcx - (CAR_COLORS.length - 1) / 2 * colorSpacing;
+    const courseX = lcx - 190;
+    const courseW = (rcx + 190) - courseX;
     return {
       cx, narrow,
       lcx, rcx, trackW, trackX, colorSpacing, colorStartX,
-      colorY: 396, colorR: 14,
-      startBtnY: 450, startBtnW: 340, startBtnH: 52,
+      courseX, courseY: 126, courseW,
+      colorY: 438, colorR: 14,
+      startBtnY: 508, startBtnW: 340, startBtnH: 52,
       sliderDefs: SLIDER_DEFS,
     };
   }
@@ -625,6 +658,17 @@ export class Game {
     if (this.state !== 'menu') return;
     const { x, y } = this.toCanvasCoords(e);
     const layout = this.getMenuLayout(this.canvas.width);
+
+    if (
+      y >= layout.courseY - 22 &&
+      y <= layout.courseY + 28 &&
+      x >= layout.courseX &&
+      x <= layout.courseX + layout.courseW
+    ) {
+      const dir = x < layout.courseX + layout.courseW / 2 ? -1 : 1;
+      this.setCourseIndex(this.courseIndex + dir);
+      return;
+    }
 
     // Hit-test sliders
     for (let i = 0; i < layout.sliderDefs.length; i++) {
@@ -667,6 +711,15 @@ export class Game {
     const layout = this.getMenuLayout(this.canvas.width);
     const t = Math.max(0, Math.min(1, (x - layout.trackX) / layout.trackW));
     this.setup[layout.sliderDefs[this.draggingSlider].key] = t;
+  }
+
+  private setCourseIndex(index: number): void {
+    const next = (index + COURSES.length) % COURSES.length;
+    if (next === this.courseIndex) return;
+    this.courseIndex = next;
+    this.highScores = this.loadHighScores();
+    void this.refreshHighScores();
+    this.initRace();
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -793,6 +846,35 @@ export class Game {
     }
   }
 
+  private renderMenuCourse(layout: ReturnType<typeof this.getMenuLayout>): void {
+    const { ctx } = this;
+    const course = this.currentCourse();
+    const { courseX, courseY, courseW } = layout;
+    const cx = courseX + courseW / 2;
+    const h = layout.narrow ? 56 : 62;
+
+    ctx.save();
+    ctx.textAlign = 'center';
+
+    ctx.fillStyle = 'rgba(17,17,17,0.08)';
+    ctx.beginPath();
+    ctx.roundRect(courseX, courseY - 18, courseW, h, 6);
+    ctx.fill();
+
+    ctx.fillStyle = '#111111';
+    ctx.font = `800 ${layout.narrow ? 18 : 22}px "Open Sans", sans-serif`;
+    ctx.fillText(course.name.toUpperCase(), cx, courseY + 6);
+    ctx.font = '400 13px "Open Sans", sans-serif';
+    ctx.fillStyle = '#555550';
+    ctx.fillText(course.description, cx, courseY + 26);
+
+    ctx.font = '800 24px "Open Sans", sans-serif';
+    ctx.fillStyle = '#111111';
+    ctx.fillText('‹', courseX + 24, courseY + 14);
+    ctx.fillText('›', courseX + courseW - 24, courseY + 14);
+    ctx.restore();
+  }
+
   /** Narrow (mobile portrait) single-column menu. */
   private renderMenuNarrow(layout: ReturnType<typeof this.getMenuLayout>): void {
     const { ctx, canvas } = this;
@@ -815,18 +897,20 @@ export class Game {
     ctx.lineTo(cx + colHalfW, 98);
     ctx.stroke();
 
+    this.renderMenuCourse(layout);
+
     // BESTZEITEN — above vehicle config
     ctx.font = '700 13px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
-    ctx.fillText('BESTZEITEN', cx, 122);
+    ctx.fillText('BESTZEITEN', cx, 174);
 
     if (this.highScores.length === 0) {
       ctx.font = '400 15px "Open Sans", sans-serif';
       ctx.fillStyle = '#aaa89a';
-      ctx.fillText('Noch keine Zeiten.', cx, 150);
+      ctx.fillText('Noch keine Zeiten.', cx, 204);
     } else {
       const rowH = 30;
-      const top = 148;
+      const top = 202;
       for (let i = 0; i < this.highScores.length; i++) {
         const score = this.highScores[i];
         const ry = top + i * rowH;
@@ -846,14 +930,14 @@ export class Game {
     ctx.strokeStyle = '#111111';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(cx - colHalfW, 296);
-    ctx.lineTo(cx + colHalfW, 296);
+    ctx.moveTo(cx - colHalfW, 348);
+    ctx.lineTo(cx + colHalfW, 348);
     ctx.stroke();
 
     // FAHRZEUG header
     ctx.font = '700 13px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
-    ctx.fillText('FAHRZEUG', cx, 314);
+    ctx.fillText('FAHRZEUG', cx, 366);
 
     this.renderMenuSliders(layout);
     this.renderMenuColors(layout);
@@ -897,11 +981,13 @@ export class Game {
     ctx.lineTo(cx + 540, 100);
     ctx.stroke();
 
+    this.renderMenuCourse(layout);
+
     // Column headers
     ctx.font = '700 15px "Open Sans", sans-serif';
     ctx.fillStyle = '#888880';
-    ctx.fillText('BESTZEITEN', lcx, 130);
-    ctx.fillText('FAHRZEUG', rcx, 130);
+    ctx.fillText('BESTZEITEN', lcx, 188);
+    ctx.fillText('FAHRZEUG', rcx, 188);
 
     // Left: Highscores
     if (this.highScores.length === 0) {
@@ -910,7 +996,7 @@ export class Game {
       ctx.fillText('Noch keine Zeiten.', lcx, 260);
     } else {
       const rowH = 38;
-      const top  = 172;
+      const top  = 230;
       for (let i = 0; i < this.highScores.length; i++) {
         const score = this.highScores[i];
         const y = top + i * rowH;
@@ -980,6 +1066,7 @@ export class Game {
   private renderRace(): void {
     const { ctx, canvas } = this;
     const W = canvas.width, H = canvas.height;
+    const course = this.currentCourse();
 
     // ── Grass stripes — horizontal world-Y bands, drawn before shake ──────────
     // sy = camY − wy + H/2  →  stripe idx i covers world Y [i·S, (i+1)·S]
@@ -991,7 +1078,7 @@ export class Game {
         const syA = Math.max(0, Math.floor(this.camY - (i + 1) * S + H * 0.5));
         const syB = Math.min(H, Math.floor(this.camY - i * S + H * 0.5));
         if (syB <= syA) continue;
-        ctx.fillStyle = i % 2 === 0 ? GRASS_LIGHT : GRASS_DARK;
+        ctx.fillStyle = i % 2 === 0 ? course.grassLight : course.grassDark;
         ctx.fillRect(0, syA, W, syB - syA);
       }
     }
@@ -1150,7 +1237,7 @@ export class Game {
     const cx = W * 0.5, cy = H * 0.5;
 
     // Show track in background (frozen at finish position)
-    ctx.fillStyle = '#3e753b';
+    ctx.fillStyle = this.currentCourse().grassDark;
     ctx.fillRect(0, 0, W, H);
     this.track.render(ctx, this.camX, this.camY, W, H);
     this.car.render(ctx, this.camX, this.camY, W, H);

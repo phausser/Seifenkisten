@@ -4,7 +4,16 @@ Ein 2D-Top-Down-Seifenkisten-Rennspiel, gebaut mit HTML5 Canvas, TypeScript und 
 
 ## Spielidee
 
-Steuere deine Seifenkiste einen Hang hinunter, drifte durch Kurven, weiche Heuballen und Reifen aus und erreiche das Ziel so schnell wie möglich. Kollisionen kosten Zeit. Bestzeiten werden online oder lokal gespeichert.
+Steuere deine Seifenkiste einen Hang hinunter, drifte durch Kurven, weiche Heuballen und Reifen aus und erreiche das Ziel so schnell wie möglich. Kollisionen kosten Zeit. Es gibt drei Kurse mit eigenen Bestzeiten; mit LootLocker werden diese online geführt, ohne LootLocker lokal gespeichert.
+
+## Features
+
+- Drei Kurse: Time Drift, Serpentinen und Sprintstrecke
+- Prozedurale Catmull-Rom-Strecken mit kursabhängiger Breite, Länge und Kurvenstärke
+- Eigene Fahrzeugphysik mit Schwerkraft, Grip, Drift und Bremsen
+- Fahrzeug-Setup im Menü: Gewicht, Lenkung, Aerodynamik und Farbe
+- Top-5-Highscores pro Kurs: LootLocker wenn konfiguriert, sonst `localStorage`
+- Touch-Steuerung und mobile Namenseingabe
 
 ## Installation
 
@@ -19,7 +28,7 @@ npm run preview   # lokalen Produktions-Build testen
 
 ## Optionale Online-Bestenliste
 
-Ohne Konfiguration nutzt das Spiel nur lokale Highscores. Für LootLocker eine `.env.local` anlegen:
+Ohne Konfiguration nutzt das Spiel lokale Highscores. Sobald LootLocker konfiguriert ist, ist LootLocker die Score-Quelle und `localStorage` wird nicht für Bestzeiten genutzt. Für LootLocker eine `.env.local` anlegen:
 
 ```
 VITE_LOOTLOCKER_API_KEY=dein_api_key
@@ -38,8 +47,9 @@ VITE_LOOTLOCKER_GAME_VERSION=0.1.0
 | ↓ / S | Bremsen |
 | Space / Enter | Bestätigen |
 | ESC | Zurück zum Menü |
+| ← / → im Menü | Kurs wechseln |
 
-Touch: unten links/rechts lenken, unten mittig bremsen. Im Menü lassen sich Setup-Slider und Farbauswahl per Pointer/Touch bedienen.
+Touch: unten links/rechts lenken, unten mittig bremsen. Im Menü lassen sich Kurswahl, Setup-Slider und Farbauswahl per Pointer/Touch bedienen.
 
 ## Entwicklung
 

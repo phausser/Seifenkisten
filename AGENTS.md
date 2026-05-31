@@ -8,7 +8,7 @@
 - **Rendering:** HTML5 Canvas 2D — no external game engine
 - **Physics:** Custom (no libraries)
 - **Build:** Vite 5
-- **Storage:** LocalStorage high scores, optional LootLocker online sync
+- **Storage:** per-course LootLocker high scores when configured; LocalStorage fallback otherwise
 - **Target:** 720px logical height, adaptive width, 60 FPS, small dependency footprint
 
 ## File Structure
@@ -22,6 +22,7 @@ src/
     Game.ts            # game loop, state machine, camera, render dispatch
     Car.ts             # car entity: custom gravity/steering/friction physics + render
     CarConfig.ts       # menu-configurable car setup values
+    CourseConfig.ts    # data-driven course list and track tuning
     FlowerSystem.ts    # procedural ambient flowers
     Track.ts           # procedural Catmull-Rom track; samples[], bales[], queries
     Obstacle.ts        # road obstacles: hay bales + tires
@@ -56,6 +57,7 @@ vite.config.ts
 - `steerAxis` — returns −1 / 0 / +1 (A/Left = −1, D/Right = +1)
 - `brakeAxis` — returns 1 while Down/S is held, otherwise 0
 - `flush()` called at end of every frame
+- In the menu, Left/Right or Q/E switches course.
 
 ### Canvas Scaling
 - Logical height is always 720
@@ -86,18 +88,19 @@ Playable core is complete.
 Running features:
 - `npm run dev` → Vite dev server
 - Menu → Countdown → Race → Finish → Highscores state machine
-- Procedural track: Catmull-Rom, 15 segments, ~8400 world units (~30 s)
-- ~30 obstacles on road (hay bales + tires), seeded placement
+- Three course configs: Time Drift, Serpentinen, Sprintstrecke
+- Procedural track: Catmull-Rom, course-specific segment count/width/curvature
+- Course-specific road obstacles (hay bales + tires), seeded placement
 - Collision detection: circle-circle (CAR_RADIUS=18); border check via lateralOffset
 - Crash response: bounce lateralOffset, 0.45 s freeze, red flash, "+3s" popup and time penalty
 - All cast shadows are dark, soft blurred offset shapes using `ctx.filter = blur(...)`; no outlines
 - Sparse dust trail behind the car and speed lines at high velocity
-- Start countdown, race timer, bottom progress bar, finish time panel, LocalStorage top-5 highscores, optional LootLocker sync, and 3-letter name entry for places 1–5
-- Menu car setup sliders for weight, steering, aero, plus color selection
+- Start countdown, race timer, bottom progress bar, finish time panel, per-course top-5 highscores via LootLocker or LocalStorage fallback, and 3-letter name entry for places 1–5
+- Menu course selector, car setup sliders for weight, steering, aero, plus color selection
 - Web Audio effects for start/countdown/crash/finish/save, crash ripple, canvas touch controls, mobile name input, particle cap, deterministic speed lines
 - Ambient flowers and birds
 
-Next: tuning, deployment polish, seed/difficulty selection, ghost replay, or highscore management.
+Next: tuning, deployment polish, ghost replay, or highscore management.
 
 ## Visual Style
 - **Aesthetic:** Minimalist, flat comic — hard outlines, no gradients

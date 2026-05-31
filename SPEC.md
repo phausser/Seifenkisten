@@ -24,7 +24,8 @@
   - Small class-based subsystems
   - Game loop with requestAnimationFrame
   - State machine (`menu`, `countdown`, `race`, `finish`)
-  - LocalStorage high scores with optional LootLocker sync
+  - Data-driven course configuration
+  - Per-course high scores via LootLocker when configured, otherwise LocalStorage
 
 ## 3. Runtime & Build
 
@@ -54,6 +55,7 @@ VITE_LOOTLOCKER_GAME_VERSION    # optional, defaults to 0.1.0
   - Escape: Return to menu from countdown/race
   - Touch: bottom-left/bottom-right zones steer, bottom-center zone brakes
 - **Menu Setup:**
+  - Course selection
   - Weight
   - Steering
   - Aerodynamics
@@ -69,8 +71,7 @@ VITE_LOOTLOCKER_GAME_VERSION    # optional, defaults to 0.1.0
 
 ### Track
 - **Generation:** Procedurally generated curvy path, always downhill.
-  - Length: roughly 8400 world units, designed for ~30 second runs.
-  - Width: Fixed in world units.
+  - Course configs define seed, length, width, curve strength, colors, and placement seeds.
   - Curvature: Smooth Catmull-Rom spline.
   - Background: Grass stripes, flowers, birds, and road.
   - Sides: Dense hay bales as barriers.
@@ -93,9 +94,15 @@ VITE_LOOTLOCKER_GAME_VERSION    # optional, defaults to 0.1.0
 - **Finish Line:** Banner + confetti/time travel particles.
 - **Time Attack:** Primary goal is lowest total time.
 - **High Scores:** Top 5 list.
-  - LocalStorage is always available.
-  - LootLocker can load and submit scores when configured.
+  - LootLocker is authoritative when configured; course id is stored in metadata.
+  - LocalStorage is used only when LootLocker is not configured and is separated by course id.
   - Shows time, date, and 3-letter name.
+
+### Courses
+
+- **Time Drift:** balanced default course.
+- **Serpentinen:** narrower, more technical, stronger curves.
+- **Sprintstrecke:** wider, faster, less technical.
 
 ### Time Travel Theme
 - Visuals: Subtle dust trail behind car.
@@ -108,6 +115,7 @@ VITE_LOOTLOCKER_GAME_VERSION    # optional, defaults to 0.1.0
    - Title
    - Start button
    - Highscores
+   - Course selector
    - Car setup sliders and color swatches
 
 2. **Countdown**
@@ -167,6 +175,7 @@ src/
     BirdSystem.ts
     Car.ts
     CarConfig.ts
+    CourseConfig.ts
     FlowerSystem.ts
     Game.ts
     Obstacle.ts
@@ -188,15 +197,14 @@ vite.config.ts
 Complete:
 - Canvas setup, scaling, fixed timestep loop
 - Car physics and menu-configurable car setup
-- Procedural track and obstacle placement
+- Three data-driven courses with procedural track and obstacle placement
 - Collision response and time penalty
 - Timer, progress bar, countdown, finish flow
-- Local high scores and optional LootLocker sync
+- Per-course high scores via LootLocker or LocalStorage fallback
 - Touch controls and mobile name input
 - Web Audio effects, dust, speed lines, ripple, flowers, birds
 
 Possible next work:
-- Difficulty/seed selection
 - Ghost replay of the best run
 - More track themes while preserving top-down rules
 - Highscore reset/export controls

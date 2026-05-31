@@ -1,13 +1,11 @@
 import { catmullRom, Rng } from '../utils/math';
 import type { Vec2 } from '../utils/math';
 import { drawHayBale } from './Obstacle';
+import { DEFAULT_COURSE, type CourseConfig } from './CourseConfig';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const HALF_WIDTH = 140;  // road half-width (full road = 280 world units)
 const SAMPLE_STEP = 10;   // arc-length between stored samples
-const YSTEP = 560;  // Y spacing between track waypoints
-const NUM_SEGS = 15;   // number of curved segments (→ ~30 s at 280 u/s)
 const BALE_EVERY = 78;   // arc-length between hay-bale pairs
 const BALE_R = 22;   // hay-bale radius (world units)
 const BALE_OFF = BALE_R - 3; // keeps the inner edge close to the road edge
@@ -32,14 +30,16 @@ export class Track {
   readonly bales: Bale[] = [];
   readonly totalLength: number;
   readonly finishDist: number;
+  readonly config: CourseConfig;
 
-  constructor(seed = 1337) {
-    const pts = this.genWaypoints(seed);
+  constructor(config: CourseConfig = DEFAULT_COURSE) {
+    this.config = config;
+    const pts = this.genWaypoints(config.seed);
     this.buildSamples(pts);
     this.totalLength = this.samples.at(-1)?.dist ?? 0;
     this.finishDist = this.totalLength - 280;
-    this.placeBales(seed ^ 0xBEEF);
-    this.placeFinishBarrier(seed ^ 0xF1A1);
+    this.placeBales(config.seed ^ 0xBEEF);
+    this.placeFinishBarrier(config.seed ^ 0xF1A1);
   }
 
   /** Place a wall of hay bales in the grass just past the end of the road. */
@@ -51,7 +51,7 @@ export class Track {
     const overrun = BALE_R;
     const baseX = s.x + s.tx * overrun;
     const baseY = s.y + s.ty * overrun;
-    const usableHalf = HALF_WIDTH - BALE_R;
+    const usableHalf = this.config.halfWidth - BALE_R;
     const baseAngle = Math.atan2(-s.ty, s.tx);
 
     for (let i = 0; i < BARRIER_COUNT; i++) {
@@ -72,21 +72,23 @@ export class Track {
     const pts: Vec2[] = [];
 
     // Ghost points + straight opening
-    for (let i = -3; i <= 0; i++) pts.push({ x: 0, y: YSTEP * i });
+    const { yStep, numSegs, xLimit, curveStep } = this.config;
+
+    for (let i = -3; i <= 0; i++) pts.push({ x: 0, y: yStep * i });
 
     // Curvy body
     let prevX = 0;
-    for (let i = 1; i <= NUM_SEGS; i++) {
-      prevX = Math.max(-520, Math.min(520, prevX + rng.range(-300, 300)));
-      pts.push({ x: prevX, y: YSTEP * i });
+    for (let i = 1; i <= numSegs; i++) {
+      prevX = Math.max(-xLimit, Math.min(xLimit, prevX + rng.range(-curveStep, curveStep)));
+      pts.push({ x: prevX, y: yStep * i });
     }
 
     // Straight closing + ghost points
     const lx = pts.at(-1)!.x;
-    pts.push({ x: lx * 0.5, y: YSTEP * (NUM_SEGS + 1) });
-    pts.push({ x: 0, y: YSTEP * (NUM_SEGS + 2) });
-    pts.push({ x: 0, y: YSTEP * (NUM_SEGS + 3) });
-    pts.push({ x: 0, y: YSTEP * (NUM_SEGS + 4) });
+    pts.push({ x: lx * 0.5, y: yStep * (numSegs + 1) });
+    pts.push({ x: 0, y: yStep * (numSegs + 2) });
+    pts.push({ x: 0, y: yStep * (numSegs + 3) });
+    pts.push({ x: 0, y: yStep * (numSegs + 4) });
 
     return pts;
   }
@@ -126,7 +128,7 @@ export class Track {
             tx, ty,
             nx: -ty,  // left normal
             ny: tx,
-            halfWidth: HALF_WIDTH,
+            halfWidth: this.config.halfWidth,
             dist: nextAt,
           });
 
@@ -214,7 +216,7 @@ export class Track {
     const STRIPE_LEN = 65;
 
     // 1. Full road shape in the lighter stripe colour
-    ctx.fillStyle = '#b4b2b0';
+    ctx.fillStyle = this.config.roadLight;
     ctx.beginPath();
     ctx.moveTo(lx[0], ly[0]);
     for (let i = 1; i < slice.length; i++) ctx.lineTo(lx[i], ly[i]);
@@ -223,7 +225,7 @@ export class Track {
     ctx.fill();
 
     // 2. Darker stripes — collect consecutive same-parity segments → one polygon
-    ctx.fillStyle = '#a9a7a5';
+    ctx.fillStyle = this.config.roadDark;
     let si = 0;
     while (si < slice.length - 1) {
       const parity = Math.floor(slice[si].dist / STRIPE_LEN) % 2;
