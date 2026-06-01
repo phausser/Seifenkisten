@@ -11,6 +11,7 @@ export class AudioSystem {
   // Preloaded drive-start MP3
   private driveBuffer: AudioBuffer | null = null;
   private driveLoadPromise: Promise<void> | null = null;
+  private driveSource: AudioBufferSourceNode | null = null;
 
   resume(): void {
     const audio = this.getContext();
@@ -32,15 +33,27 @@ export class AudioSystem {
     })();
   }
 
+  driveStop(): void {
+    if (!this.driveSource) return;
+    try {
+      this.driveSource.stop();
+    } catch {
+      // already stopped
+    }
+    this.driveSource = null;
+  }
+
   driveStart(): void {
     if (!this.enabled || !this.driveBuffer) return;
     try {
       const audio = this.getContext();
       if (audio.state !== 'running') return;
+      this.driveStop();
       const src = audio.createBufferSource();
       src.buffer = this.driveBuffer;
       src.connect(audio.destination);
       src.start();
+      this.driveSource = src;
     } catch {
       this.enabled = false;
     }
