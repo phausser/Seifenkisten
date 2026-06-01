@@ -257,6 +257,7 @@ export class Game {
   private updateRace(dt: number): void {
     if (this.input.wasPressed('Escape')) {
       this.audio.squeal(0);
+      this.audio.driveStop();
       this.setState('menu');
       return;
     }
@@ -406,6 +407,7 @@ export class Game {
 
   private finishRace(): void {
     this.audio.squeal(0);
+    this.audio.driveStop();
     this.finishTime = this.raceTime;
     const rank = this.getHighScoreRank(this.finishTime);
     if (rank !== null) {
